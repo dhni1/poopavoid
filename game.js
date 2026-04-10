@@ -41,6 +41,12 @@ const RANKING_KEY = "ranking";
 const CANVAS_WIDTH = canvas.width;
 const CANVAS_HEIGHT = canvas.height;
 const POOP_SIZE = 42;
+const POOP_SPRITE_BOUNDS = {
+  x: 2 / 128,
+  y: 10 / 128,
+  w: 117 / 128,
+  h: 118 / 128
+};
 const PLAYER_WIDTH = POOP_SIZE;
 const PLAYER_HEIGHT = POOP_SIZE;
 const PLAYER_Y = CANVAS_HEIGHT - PLAYER_HEIGHT - 38;
@@ -228,10 +234,10 @@ function getPlayerHitbox() {
 
 function getPoopHitbox(poop) {
   return {
-    x: poop.x + poop.w * 0.22,
-    y: poop.y + poop.h * 0.18,
-    w: poop.w * 0.56,
-    h: poop.h * 0.68
+    x: poop.x + poop.w * POOP_SPRITE_BOUNDS.x,
+    y: poop.y + poop.h * POOP_SPRITE_BOUNDS.y,
+    w: poop.w * POOP_SPRITE_BOUNDS.w,
+    h: poop.h * POOP_SPRITE_BOUNDS.h
   };
 }
 
