@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="poopBody" x1="0.18" x2="0.82" y1="0.08" y2="0.92">
+      <stop offset="0" stop-color="#d39b5d"/>
+      <stop offset="0.42" stop-color="#9a6036"/>
+      <stop offset="1" stop-color="#6e3e20"/>
+    </linearGradient>
+    <radialGradient id="poopHighlight" cx="0.33" cy="0.2" r="0.7">
+      <stop offset="0" stop-color="#f0c98e" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#f0c98e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <path fill="url(#poopBody)" d="M66 10c8 0 16 7 16 17 0 4-1 8-4 12 10 4 17 13 17 25 0 2 0 4-1 6 14 2 25 14 25 29 0 17-14 31-31 31H33C16 130 2 116 2 99c0-16 12-29 27-31a27 27 0 0 1-1-7c0-15 10-27 24-30-2-3-3-7-3-11 0-11 8-20 17-20z"/>
+  <path fill="url(#poopHighlight)" d="M61 18c7 0 13 6 13 14 0 4-2 8-5 10 7 1 14 8 15 17-12-8-29-12-45-8 1-10 9-18 18-20-3-2-4-6-4-10 0-8 4-13 8-13z"/>
+
+  <ellipse cx="43" cy="75" rx="18" ry="22" fill="#fffdf8"/>
+  <ellipse cx="86" cy="75" rx="18" ry="22" fill="#fffdf8"/>
+  <ellipse cx="46" cy="77" rx="10" ry="14" fill="#1d1715"/>
+  <ellipse cx="83" cy="77" rx="10" ry="14" fill="#1d1715"/>
+
+  <path fill="#fffdf8" d="M33 97c7 11 18 17 31 17s24-6 31-17c-8-3-18-4-31-4s-23 1-31 4z"/>
+</svg>

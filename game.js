@@ -13,6 +13,7 @@ const toggleRankingButton = document.getElementById("toggle-ranking");
 const rankingPanel = document.getElementById("ranking-panel");
 const closeRankingButton = document.getElementById("close-ranking");
 const rankingList = document.getElementById("ranking");
+const poopSprite = new Image();
 
 const RANKING_KEY = "ranking";
 const CANVAS_WIDTH = canvas.width;
@@ -46,6 +47,14 @@ const pressedKeys = {
   left: false,
   right: false
 };
+
+let poopSpriteReady = false;
+
+poopSprite.addEventListener("load", () => {
+  poopSpriteReady = true;
+});
+
+poopSprite.src = "assets/poop.svg";
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -121,6 +130,16 @@ function setFeedback(message, tone = "") {
 function drawPlayer() {
   ctx.fillStyle = "#2d6df6";
   ctx.fillRect(player.x, player.y, player.w, player.h);
+}
+
+function drawPoop(poop) {
+  if (poopSpriteReady) {
+    ctx.drawImage(poopSprite, poop.x, poop.y, poop.w, poop.h);
+    return;
+  }
+
+  ctx.fillStyle = "#8a532d";
+  ctx.fillRect(poop.x, poop.y, poop.w, poop.h);
 }
 
 function drawScore() {
@@ -282,11 +301,9 @@ function endGame() {
 }
 
 function updatePoops(deltaTime) {
-  ctx.fillStyle = "brown";
-
   poops.forEach(poop => {
     poop.y += FALL_SPEED * deltaTime;
-    ctx.fillRect(poop.x, poop.y, poop.w, poop.h);
+    drawPoop(poop);
 
     if (hasCollision(player, poop)) {
       endGame();
