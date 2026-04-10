@@ -2,20 +2,30 @@
   box-sizing: border-box;
 }
 
+:root {
+  --stage-aspect-ratio: 4 / 5;
+}
+
 body {
   margin: 0;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 28px 18px;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(12px, 2vh, 28px) clamp(12px, 2vw, 18px);
   text-align: center;
   background: linear-gradient(180deg, #f8f3df 0%, #e9ddb5 100%);
   color: #2f241f;
   font-family: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+  overflow: hidden;
 }
 
 .game-shell {
-  width: min(100%, 800px);
+  width: min(100%, var(--shell-width, 800px));
+  max-width: 800px;
+  display: grid;
+  gap: clamp(12px, 2vh, 20px);
+  justify-items: center;
 }
 
 h1,
@@ -25,17 +35,19 @@ p {
 }
 
 h1 {
-  margin-bottom: 20px;
+  font-size: clamp(2.1rem, 4.5vw, 3.6rem);
+  line-height: 1.1;
 }
 
 .game-stage {
   position: relative;
+  width: min(100%, var(--stage-width, 720px));
+  aspect-ratio: var(--stage-aspect-ratio);
 }
 
 canvas {
   width: 100%;
-  max-width: 720px;
-  height: auto;
+  height: 100%;
   display: block;
   margin: 0 auto;
   background: #000;
@@ -56,6 +68,7 @@ canvas {
   background: rgba(20, 14, 8, 0.68);
   border-radius: 24px;
   color: #fff7dd;
+  overflow-y: auto;
 }
 
 .overlay-title {
@@ -122,19 +135,30 @@ button {
 }
 
 .ranking-panel {
-  width: min(100%, 720px);
-  margin: 18px auto 0;
-  padding: 20px 22px;
-  background: rgba(255, 247, 221, 0.92);
-  border: 2px solid #2f241f;
-  border-radius: 18px;
-  box-shadow: 0 12px 28px rgba(86, 62, 22, 0.14);
+  justify-content: flex-start;
+  padding: clamp(24px, 4vw, 36px);
+  background: rgba(255, 247, 221, 0.96);
+  color: #2f241f;
+}
+
+.ranking-header {
+  width: min(100%, 460px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ranking-header h2 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
 }
 
 #ranking {
-  margin: 16px 0 0;
+  width: min(100%, 460px);
+  margin: 8px 0 0;
   padding-left: 24px;
   text-align: left;
+  line-height: 1.55;
 }
 
 #ranking li + li {
@@ -164,6 +188,16 @@ button {
 
   .overlay-actions button,
   .primary-button {
+    width: 100%;
+  }
+
+  .ranking-header {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .ranking-header button,
+  #ranking {
     width: 100%;
   }
 }

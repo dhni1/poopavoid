@@ -31,12 +31,15 @@
       <button id="toggle-ranking" class="secondary-button" type="button">랭킹</button>
     </div>
   </section>
-</div>
 
-<section id="ranking-panel" class="ranking-panel hidden">
-  <h2>🏆 랭킹</h2>
-  <ol id="ranking"></ol>
-</section>
+  <section id="ranking-panel" class="overlay-panel ranking-panel hidden">
+    <div class="ranking-header">
+      <h2>🏆 랭킹</h2>
+      <button id="close-ranking" class="secondary-button" type="button">닫기</button>
+    </div>
+    <ol id="ranking"></ol>
+  </section>
+</div>
 </main>
 
 <script src="game.js" defer></script>

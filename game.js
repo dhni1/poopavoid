@@ -1,5 +1,6 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const gameShell = document.querySelector(".game-shell");
 const startPanel = document.getElementById("start-panel");
 const startGameButton = document.getElementById("start-game");
 const nicknameInput = document.getElementById("nickname-input");
@@ -10,6 +11,7 @@ const saveFeedback = document.getElementById("save-feedback");
 const restartGameButton = document.getElementById("restart-game");
 const toggleRankingButton = document.getElementById("toggle-ranking");
 const rankingPanel = document.getElementById("ranking-panel");
+const closeRankingButton = document.getElementById("close-ranking");
 const rankingList = document.getElementById("ranking");
 
 const RANKING_KEY = "ranking";
@@ -47,6 +49,46 @@ const pressedKeys = {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getBodyPadding(axisStart, axisEnd) {
+  const styles = window.getComputedStyle(document.body);
+  return (
+    Number.parseFloat(styles.getPropertyValue(axisStart)) +
+    Number.parseFloat(styles.getPropertyValue(axisEnd))
+  );
+}
+
+function resizeGameLayout() {
+  const verticalPadding = getBodyPadding("padding-top", "padding-bottom");
+  const horizontalPadding = getBodyPadding("padding-left", "padding-right");
+  const shellStyles = window.getComputedStyle(gameShell);
+  const shellGap = Number.parseFloat(shellStyles.getPropertyValue("row-gap")) || 0;
+  const title = gameShell.querySelector("h1");
+
+  const calculateStageWidth = () => {
+    const titleHeight = title.getBoundingClientRect().height;
+    const maxWidthFromViewport = Math.max(220, Math.min(window.innerWidth - horizontalPadding, 800));
+    const availableHeight = Math.max(
+      220,
+      window.innerHeight - verticalPadding - titleHeight - shellGap
+    );
+    const maxWidthFromHeight = (availableHeight * CANVAS_WIDTH) / CANVAS_HEIGHT;
+    return Math.floor(Math.max(220, Math.min(maxWidthFromViewport, maxWidthFromHeight)));
+  };
+
+  gameShell.style.setProperty(
+    "--shell-width",
+    `${Math.max(220, Math.min(window.innerWidth - horizontalPadding, 800))}px`
+  );
+  let stageWidth = calculateStageWidth();
+
+  gameShell.style.setProperty("--stage-width", `${stageWidth}px`);
+  gameShell.style.setProperty("--shell-width", `${stageWidth}px`);
+
+  stageWidth = calculateStageWidth();
+  gameShell.style.setProperty("--stage-width", `${stageWidth}px`);
+  gameShell.style.setProperty("--shell-width", `${stageWidth}px`);
 }
 
 function getInitialPlayerX() {
@@ -353,7 +395,10 @@ document.addEventListener("keyup", event => handleKeyChange(event, false));
 startGameButton.addEventListener("click", beginGame);
 restartGameButton.addEventListener("click", restartGame);
 toggleRankingButton.addEventListener("click", toggleRanking);
+closeRankingButton.addEventListener("click", () => setRankingVisibility(false));
+window.addEventListener("resize", resizeGameLayout);
 
+resizeGameLayout();
 showRanking();
 setRankingVisibility(false);
 setOverlayVisibility(gameOverOverlay, false);
