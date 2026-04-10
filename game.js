@@ -14,11 +14,33 @@ const rankingPanel = document.getElementById("ranking-panel");
 const closeRankingButton = document.getElementById("close-ranking");
 const rankingList = document.getElementById("ranking");
 const poopSprite = new Image();
+const poopSpriteMarkup = `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+    <defs>
+      <linearGradient id="poopBody" x1="0.18" x2="0.82" y1="0.08" y2="0.92">
+        <stop offset="0" stop-color="#d39b5d"/>
+        <stop offset="0.42" stop-color="#9a6036"/>
+        <stop offset="1" stop-color="#6e3e20"/>
+      </linearGradient>
+      <radialGradient id="poopHighlight" cx="0.33" cy="0.2" r="0.7">
+        <stop offset="0" stop-color="#f0c98e" stop-opacity="0.95"/>
+        <stop offset="1" stop-color="#f0c98e" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <path fill="url(#poopBody)" d="M66 10c8 0 16 7 16 17 0 4-1 8-4 12 10 4 17 13 17 25 0 2 0 4-1 6 14 2 25 14 25 29 0 17-14 31-31 31H33C16 130 2 116 2 99c0-16 12-29 27-31a27 27 0 0 1-1-7c0-15 10-27 24-30-2-3-3-7-3-11 0-11 8-20 17-20z"/>
+    <path fill="url(#poopHighlight)" d="M61 18c7 0 13 6 13 14 0 4-2 8-5 10 7 1 14 8 15 17-12-8-29-12-45-8 1-10 9-18 18-20-3-2-4-6-4-10 0-8 4-13 8-13z"/>
+    <ellipse cx="43" cy="75" rx="18" ry="22" fill="#fffdf8"/>
+    <ellipse cx="86" cy="75" rx="18" ry="22" fill="#fffdf8"/>
+    <ellipse cx="46" cy="77" rx="10" ry="14" fill="#1d1715"/>
+    <ellipse cx="83" cy="77" rx="10" ry="14" fill="#1d1715"/>
+    <path fill="#fffdf8" d="M33 97c7 11 18 17 31 17s24-6 31-17c-8-3-18-4-31-4s-23 1-31 4z"/>
+  </svg>
+`;
 
 const RANKING_KEY = "ranking";
 const CANVAS_WIDTH = canvas.width;
 const CANVAS_HEIGHT = canvas.height;
-const POOP_SIZE = 34;
+const POOP_SIZE = 42;
 const PLAYER_WIDTH = POOP_SIZE;
 const PLAYER_HEIGHT = POOP_SIZE;
 const PLAYER_Y = CANVAS_HEIGHT - PLAYER_HEIGHT - 38;
@@ -54,7 +76,7 @@ poopSprite.addEventListener("load", () => {
   poopSpriteReady = true;
 });
 
-poopSprite.src = "assets/poop.svg";
+poopSprite.src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(poopSpriteMarkup)}`;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -138,8 +160,10 @@ function drawPoop(poop) {
     return;
   }
 
-  ctx.fillStyle = "#8a532d";
-  ctx.fillRect(poop.x, poop.y, poop.w, poop.h);
+  ctx.font = `${Math.round(poop.h)}px serif`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "top";
+  ctx.fillText("💩", poop.x, poop.y);
 }
 
 function drawScore() {
@@ -191,6 +215,24 @@ function hasCollision(a, b) {
     a.y < b.y + b.h &&
     a.y + a.h > b.y
   );
+}
+
+function getPlayerHitbox() {
+  return {
+    x: player.x + player.w * 0.18,
+    y: player.y + player.h * 0.18,
+    w: player.w * 0.64,
+    h: player.h * 0.68
+  };
+}
+
+function getPoopHitbox(poop) {
+  return {
+    x: poop.x + poop.w * 0.22,
+    y: poop.y + poop.h * 0.18,
+    w: poop.w * 0.56,
+    h: poop.h * 0.68
+  };
 }
 
 function normalizeRanking(rawRanking) {
@@ -301,11 +343,13 @@ function endGame() {
 }
 
 function updatePoops(deltaTime) {
+  const playerHitbox = getPlayerHitbox();
+
   poops.forEach(poop => {
     poop.y += FALL_SPEED * deltaTime;
     drawPoop(poop);
 
-    if (hasCollision(player, poop)) {
+    if (hasCollision(playerHitbox, getPoopHitbox(poop))) {
       endGame();
     }
 
