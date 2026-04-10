@@ -19,7 +19,8 @@ body {
 }
 
 h1,
-h2 {
+h2,
+p {
   margin: 0;
 }
 
@@ -43,70 +44,77 @@ canvas {
   box-shadow: 0 16px 30px rgba(86, 62, 22, 0.18);
 }
 
-.game-over-panel {
-  width: min(100%, 720px);
-  margin: 18px auto 0;
-  padding: 22px 24px 24px;
-  background: rgba(255, 250, 240, 0.96);
-  border: 2px solid #2f241f;
+.overlay-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px;
+  background: rgba(20, 14, 8, 0.68);
   border-radius: 24px;
-  box-shadow: 0 12px 28px rgba(86, 62, 22, 0.14);
+  color: #fff7dd;
 }
 
-.final-score {
-  margin: 0 0 16px;
-  font-size: 1.25rem;
+.overlay-title {
+  font-size: 2.2rem;
+  font-weight: 800;
+}
+
+.overlay-copy,
+.overlay-help {
+  max-width: 460px;
+  line-height: 1.5;
+  color: #f7e9c2;
+}
+
+.overlay-help.success {
+  color: #baf0c8;
+}
+
+.overlay-help.warning {
+  color: #ffd79e;
+}
+
+.overlay-score {
+  font-size: 1.4rem;
   font-weight: 700;
 }
 
-.controls {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  margin: 0 0 10px;
-}
-
-input,
-button {
-  border-radius: 12px;
+.overlay-panel input {
+  width: min(100%, 320px);
+  padding: 14px 16px;
   border: 2px solid #2f241f;
+  border-radius: 14px;
+  background: #fffaf0;
+  color: #2f241f;
   font: inherit;
 }
 
-input {
-  flex: 1;
-  min-width: 0;
-  padding: 12px 14px;
-  background: #fffaf0;
+.overlay-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
 }
 
 button {
-  padding: 12px 16px;
-  background: #ffcf5c;
+  min-height: 52px;
+  padding: 12px 18px;
+  border: 2px solid #2f241f;
+  border-radius: 14px;
+  font: inherit;
   color: #2f241f;
   cursor: pointer;
 }
 
-.save-feedback {
-  min-height: 24px;
-  margin: 0 0 16px;
-  color: #6a5a52;
-  font-size: 0.95rem;
+.primary-button {
+  background: #ffcf5c;
 }
 
-.save-feedback.success {
-  color: #1f6b37;
-}
-
-.save-feedback.warning {
-  color: #8a4c14;
-}
-
-.restart-button {
-  width: 100%;
-  margin-top: 18px;
-  min-height: 52px;
-  background: #ff8f5c;
+.secondary-button {
+  background: #fff4cf;
 }
 
 .hidden {
@@ -114,10 +122,13 @@ button {
 }
 
 .ranking-panel {
+  width: min(100%, 720px);
+  margin: 18px auto 0;
   padding: 20px 22px;
   background: rgba(255, 247, 221, 0.92);
   border: 2px solid #2f241f;
   border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(86, 62, 22, 0.14);
 }
 
 #ranking {
@@ -138,16 +149,21 @@ button {
 }
 
 @media (max-width: 640px) {
-  .controls {
+  .overlay-panel {
+    padding: 24px 18px;
+  }
+
+  .overlay-title {
+    font-size: 1.8rem;
+  }
+
+  .overlay-actions {
+    width: 100%;
     flex-direction: column;
   }
 
-  button,
-  input {
+  .overlay-actions button,
+  .primary-button {
     width: 100%;
-  }
-
-  .game-over-panel {
-    padding: 18px 16px 20px;
   }
 }

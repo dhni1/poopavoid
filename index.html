@@ -10,26 +10,32 @@
 
 <main class="game-shell">
 <h1>💩 똥을 피해라!</h1>
+
 <div class="game-stage">
   <canvas id="game" width="720" height="900"></canvas>
-</div>
 
-<section id="game-over-panel" class="game-over-panel hidden">
-  <p id="final-score" class="final-score">이번 점수: 0점</p>
-
-  <div class="controls">
-    <input id="name" placeholder="계정명 입력">
-    <button id="save-score" type="button">랭킹 저장</button>
-  </div>
-
-  <p id="save-feedback" class="save-feedback"></p>
-
-  <section class="ranking-panel">
-    <h2>🏆 랭킹</h2>
-    <ol id="ranking"></ol>
+  <section id="start-panel" class="overlay-panel">
+    <p class="overlay-title">게임 시작</p>
+    <p class="overlay-copy">닉네임을 입력하면 게임 오버 시 최고기록이 자동으로 랭킹에 저장됩니다.</p>
+    <input id="nickname-input" type="text" maxlength="20" placeholder="닉네임 입력">
+    <p id="nickname-help" class="overlay-help">닉네임 없이 시작하면 랭킹에는 올라가지 않아요.</p>
+    <button id="start-game" class="primary-button" type="button">게임 시작</button>
   </section>
 
-  <button id="restart-game" class="restart-button" type="button">다시 시작</button>
+  <section id="game-over-overlay" class="overlay-panel hidden">
+    <p class="overlay-title">게임 오버</p>
+    <p id="final-score" class="overlay-score">점수: 0점</p>
+    <p id="save-feedback" class="overlay-help"></p>
+    <div class="overlay-actions">
+      <button id="restart-game" class="primary-button" type="button">다시시작</button>
+      <button id="toggle-ranking" class="secondary-button" type="button">랭킹</button>
+    </div>
+  </section>
+</div>
+
+<section id="ranking-panel" class="ranking-panel hidden">
+  <h2>🏆 랭킹</h2>
+  <ol id="ranking"></ol>
 </section>
 </main>
 

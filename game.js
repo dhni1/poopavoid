@@ -1,20 +1,24 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-const nameInput = document.getElementById("name");
-const saveScoreButton = document.getElementById("save-score");
-const restartGameButton = document.getElementById("restart-game");
-const gameOverPanel = document.getElementById("game-over-panel");
+const startPanel = document.getElementById("start-panel");
+const startGameButton = document.getElementById("start-game");
+const nicknameInput = document.getElementById("nickname-input");
+const nicknameHelp = document.getElementById("nickname-help");
+const gameOverOverlay = document.getElementById("game-over-overlay");
 const finalScoreText = document.getElementById("final-score");
 const saveFeedback = document.getElementById("save-feedback");
+const restartGameButton = document.getElementById("restart-game");
+const toggleRankingButton = document.getElementById("toggle-ranking");
+const rankingPanel = document.getElementById("ranking-panel");
 const rankingList = document.getElementById("ranking");
 
 const RANKING_KEY = "ranking";
 const CANVAS_WIDTH = canvas.width;
 const CANVAS_HEIGHT = canvas.height;
 const POOP_SIZE = 34;
-const PLAYER_WIDTH = 54;
-const PLAYER_HEIGHT = 54;
-const PLAYER_Y = CANVAS_HEIGHT - 92;
+const PLAYER_WIDTH = POOP_SIZE;
+const PLAYER_HEIGHT = POOP_SIZE;
+const PLAYER_Y = CANVAS_HEIGHT - PLAYER_HEIGHT - 38;
 const PLAYER_SPEED = 560;
 const PLAYER_SMOOTHING = 15;
 const FALL_SPEED = 280;
@@ -31,8 +35,10 @@ const player = {
 let poops = [];
 let score = 0;
 let gameOver = false;
+let gameStarted = false;
 let spawnTimer = 0;
 let lastFrameTime = 0;
+let currentNickname = "";
 
 const pressedKeys = {
   left: false,
@@ -53,13 +59,17 @@ function resetPlayerPosition() {
   player.vx = 0;
 }
 
-function setGameOverPanelVisibility(isVisible) {
-  gameOverPanel.classList.toggle("hidden", !isVisible);
+function setOverlayVisibility(element, isVisible) {
+  element.classList.toggle("hidden", !isVisible);
 }
 
-function setSaveFeedback(message, tone = "") {
+function setRankingVisibility(isVisible) {
+  rankingPanel.classList.toggle("hidden", !isVisible);
+}
+
+function setFeedback(message, tone = "") {
   saveFeedback.textContent = message;
-  saveFeedback.className = "save-feedback";
+  saveFeedback.className = "overlay-help";
 
   if (tone) {
     saveFeedback.classList.add(tone);
@@ -77,18 +87,13 @@ function drawScore() {
   ctx.fillText(`Score: ${score}`, 16, 36);
 }
 
-function drawGameOverOverlay() {
-  ctx.fillStyle = "rgba(0, 0, 0, 0.58)";
+function drawIdleScreen() {
+  ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  ctx.fillStyle = "#111";
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-  ctx.fillStyle = "#fff7dd";
-  ctx.font = "bold 52px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText("게임 오버", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 24);
-
-  ctx.font = "28px sans-serif";
-  ctx.fillText(`점수: ${score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 28);
-  ctx.textAlign = "start";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.fillRect(40, 50, CANVAS_WIDTH - 80, CANVAS_HEIGHT - 100);
+  drawPlayer();
 }
 
 function spawnPoop() {
@@ -133,11 +138,11 @@ function normalizeRanking(rawRanking) {
   rawRanking.forEach(entry => {
     if (!entry) return;
 
-    const name = String(entry.name || "익명").trim() || "익명";
+    const name = String(entry.name || "").trim();
     const accountKey = String(entry.accountKey || name).trim().toLowerCase();
     const scoreValue = Number(entry.score);
 
-    if (!Number.isFinite(scoreValue)) return;
+    if (!name || !accountKey || !Number.isFinite(scoreValue)) return;
 
     const existing = rankingMap.get(accountKey);
     if (!existing || scoreValue > existing.score) {
@@ -191,6 +196,36 @@ function showRanking() {
   });
 }
 
+function saveRankingIfEligible() {
+  const name = currentNickname.trim();
+
+  if (!name) {
+    return "닉네임이 없어서 이번 기록은 랭킹에 저장되지 않았어요.";
+  }
+
+  const accountKey = name.toLowerCase();
+  const ranking = loadRanking();
+  const existingEntry = ranking.find(entry => entry.accountKey === accountKey);
+
+  if (existingEntry) {
+    if (score > existingEntry.score) {
+      existingEntry.name = name;
+      existingEntry.score = score;
+      persistRanking(ranking);
+      showRanking();
+      return `최고기록이 갱신됐어요! ${name} - ${score}점`;
+    }
+
+    showRanking();
+    return `${name}의 최고기록은 ${existingEntry.score}점이라 랭킹은 유지됐어요.`;
+  }
+
+  ranking.push({ name, accountKey, score });
+  persistRanking(ranking);
+  showRanking();
+  return `랭킹에 등록됐어요! ${name} - ${score}점`;
+}
+
 function endGame() {
   if (gameOver) return;
 
@@ -198,10 +233,10 @@ function endGame() {
   pressedKeys.left = false;
   pressedKeys.right = false;
   player.vx = 0;
-  finalScoreText.textContent = `이번 점수: ${score}점`;
-  showRanking();
-  setSaveFeedback("이름을 입력하고 최고기록을 저장해보세요.");
-  setGameOverPanelVisibility(true);
+
+  finalScoreText.textContent = `점수: ${score}점`;
+  setFeedback(saveRankingIfEligible());
+  setOverlayVisibility(gameOverOverlay, true);
 }
 
 function updatePoops(deltaTime) {
@@ -224,16 +259,16 @@ function updatePoops(deltaTime) {
 }
 
 function update(timestamp) {
+  if (!gameStarted || gameOver) {
+    return;
+  }
+
   if (!lastFrameTime) {
     lastFrameTime = timestamp;
   }
 
   const deltaTime = Math.min((timestamp - lastFrameTime) / 1000, 0.05);
   lastFrameTime = timestamp;
-
-  if (gameOver) {
-    return;
-  }
 
   spawnTimer += deltaTime;
   while (spawnTimer >= SPAWN_INTERVAL) {
@@ -249,58 +284,52 @@ function update(timestamp) {
   drawScore();
 
   if (gameOver) {
-    drawGameOverOverlay();
     return;
   }
 
   requestAnimationFrame(update);
 }
 
-function restartGame() {
-  poops = [];
+function beginGame() {
+  currentNickname = nicknameInput.value.trim();
+
+  if (currentNickname) {
+    nicknameHelp.textContent = `${currentNickname} 닉네임으로 최고기록이 저장됩니다.`;
+  } else {
+    nicknameHelp.textContent = "닉네임 없이 시작하면 랭킹에는 올라가지 않아요.";
+  }
+
   score = 0;
+  poops = [];
   gameOver = false;
+  gameStarted = true;
   spawnTimer = 0;
   lastFrameTime = 0;
   pressedKeys.left = false;
   pressedKeys.right = false;
   resetPlayerPosition();
-  setGameOverPanelVisibility(false);
-  setSaveFeedback("");
+  setRankingVisibility(false);
+  setOverlayVisibility(startPanel, false);
+  setOverlayVisibility(gameOverOverlay, false);
+  setFeedback("");
   ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   drawPlayer();
   drawScore();
   requestAnimationFrame(update);
 }
 
-function saveScore() {
-  const name = nameInput.value.trim() || "익명";
-  const accountKey = name.toLowerCase();
-  const ranking = loadRanking();
-  const existingEntry = ranking.find(entry => entry.accountKey === accountKey);
+function restartGame() {
+  beginGame();
+}
 
-  if (existingEntry) {
-    if (score > existingEntry.score) {
-      existingEntry.name = name;
-      existingEntry.score = score;
-      persistRanking(ranking);
-      showRanking();
-      setSaveFeedback(`최고기록이 갱신됐어요! ${name} - ${score}점`, "success");
-      return;
-    }
-
-    setSaveFeedback(`${name} 계정의 최고기록은 ${existingEntry.score}점이라 저장되지 않았어요.`, "warning");
-    return;
-  }
-
-  ranking.push({ name, accountKey, score });
-  persistRanking(ranking);
+function toggleRanking() {
+  const shouldShow = rankingPanel.classList.contains("hidden");
   showRanking();
-  setSaveFeedback(`랭킹에 저장됐어요! ${name} - ${score}점`, "success");
+  setRankingVisibility(shouldShow);
 }
 
 function handleKeyChange(event, isPressed) {
-  if (gameOver) return;
+  if (!gameStarted || gameOver) return;
 
   if (event.key === "ArrowLeft" || event.key === "a" || event.key === "A") {
     pressedKeys.left = isPressed;
@@ -313,14 +342,19 @@ function handleKeyChange(event, isPressed) {
   }
 }
 
-document.addEventListener("keydown", event => handleKeyChange(event, true));
-document.addEventListener("keyup", event => handleKeyChange(event, false));
-saveScoreButton.addEventListener("click", saveScore);
-restartGameButton.addEventListener("click", restartGame);
+document.addEventListener("keydown", event => {
+  handleKeyChange(event, true);
 
-resetPlayerPosition();
-setGameOverPanelVisibility(false);
-setSaveFeedback("");
-drawPlayer();
-drawScore();
-requestAnimationFrame(update);
+  if (event.key === "Enter" && !gameStarted) {
+    beginGame();
+  }
+});
+document.addEventListener("keyup", event => handleKeyChange(event, false));
+startGameButton.addEventListener("click", beginGame);
+restartGameButton.addEventListener("click", restartGame);
+toggleRankingButton.addEventListener("click", toggleRanking);
+
+showRanking();
+setRankingVisibility(false);
+setOverlayVisibility(gameOverOverlay, false);
+drawIdleScreen();
