@@ -41,12 +41,8 @@ const RANKING_KEY = "ranking";
 const CANVAS_WIDTH = canvas.width;
 const CANVAS_HEIGHT = canvas.height;
 const POOP_SIZE = 42;
-const POOP_SPRITE_BOUNDS = {
-  x: 2 / 128,
-  y: 10 / 128,
-  w: 117 / 128,
-  h: 118 / 128
-};
+const POOP_MASK_SIZE = 128;
+const POOP_ALPHA_THRESHOLD = 16;
 const PLAYER_WIDTH = POOP_SIZE;
 const PLAYER_HEIGHT = POOP_SIZE;
 const PLAYER_Y = CANVAS_HEIGHT - PLAYER_HEIGHT - 38;
@@ -70,6 +66,7 @@ let gameStarted = false;
 let spawnTimer = 0;
 let lastFrameTime = 0;
 let currentNickname = "";
+let poopMaskAlpha = null;
 
 const pressedKeys = {
   left: false,
@@ -79,6 +76,14 @@ const pressedKeys = {
 let poopSpriteReady = false;
 
 poopSprite.addEventListener("load", () => {
+  const poopMaskCanvas = document.createElement("canvas");
+  const poopMaskContext = poopMaskCanvas.getContext("2d", { willReadFrequently: true });
+
+  poopMaskCanvas.width = POOP_MASK_SIZE;
+  poopMaskCanvas.height = POOP_MASK_SIZE;
+  poopMaskContext.clearRect(0, 0, POOP_MASK_SIZE, POOP_MASK_SIZE);
+  poopMaskContext.drawImage(poopSprite, 0, 0, POOP_MASK_SIZE, POOP_MASK_SIZE);
+  poopMaskAlpha = poopMaskContext.getImageData(0, 0, POOP_MASK_SIZE, POOP_MASK_SIZE).data;
   poopSpriteReady = true;
 });
 
@@ -225,20 +230,54 @@ function hasCollision(a, b) {
 
 function getPlayerHitbox() {
   return {
-    x: player.x + player.w * 0.18,
-    y: player.y + player.h * 0.18,
-    w: player.w * 0.64,
-    h: player.h * 0.68
+    x: player.x,
+    y: player.y,
+    w: player.w,
+    h: player.h
   };
 }
 
-function getPoopHitbox(poop) {
-  return {
-    x: poop.x + poop.w * POOP_SPRITE_BOUNDS.x,
-    y: poop.y + poop.h * POOP_SPRITE_BOUNDS.y,
-    w: poop.w * POOP_SPRITE_BOUNDS.w,
-    h: poop.h * POOP_SPRITE_BOUNDS.h
-  };
+function hasPoopPixelCollision(playerHitbox, poop) {
+  if (!poopSpriteReady || !poopMaskAlpha) {
+    return hasCollision(playerHitbox, poop);
+  }
+
+  const overlapLeft = Math.max(playerHitbox.x, poop.x);
+  const overlapTop = Math.max(playerHitbox.y, poop.y);
+  const overlapRight = Math.min(playerHitbox.x + playerHitbox.w, poop.x + poop.w);
+  const overlapBottom = Math.min(playerHitbox.y + playerHitbox.h, poop.y + poop.h);
+
+  if (overlapLeft >= overlapRight || overlapTop >= overlapBottom) {
+    return false;
+  }
+
+  const startX = Math.floor(overlapLeft);
+  const endX = Math.ceil(overlapRight);
+  const startY = Math.floor(overlapTop);
+  const endY = Math.ceil(overlapBottom);
+
+  for (let y = startY; y < endY; y += 1) {
+    const spriteY = Math.floor(((y + 0.5 - poop.y) / poop.h) * POOP_MASK_SIZE);
+
+    if (spriteY < 0 || spriteY >= POOP_MASK_SIZE) {
+      continue;
+    }
+
+    for (let x = startX; x < endX; x += 1) {
+      const spriteX = Math.floor(((x + 0.5 - poop.x) / poop.w) * POOP_MASK_SIZE);
+
+      if (spriteX < 0 || spriteX >= POOP_MASK_SIZE) {
+        continue;
+      }
+
+      const alphaIndex = (spriteY * POOP_MASK_SIZE + spriteX) * 4 + 3;
+      if (poopMaskAlpha[alphaIndex] > POOP_ALPHA_THRESHOLD) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function normalizeRanking(rawRanking) {
@@ -355,7 +394,7 @@ function updatePoops(deltaTime) {
     poop.y += FALL_SPEED * deltaTime;
     drawPoop(poop);
 
-    if (hasCollision(playerHitbox, getPoopHitbox(poop))) {
+    if (hasPoopPixelCollision(playerHitbox, poop)) {
       endGame();
     }
 
