@@ -56,6 +56,25 @@ canvas {
   box-shadow: 0 16px 30px rgba(86, 62, 22, 0.18);
 }
 
+.game-notification {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: min(86%, 320px);
+  max-width: calc(100% - 32px);
+  padding: 12px 18px;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  background: rgba(20, 14, 8, 0.82);
+  color: #fff7dd;
+  font-weight: 700;
+  line-height: 1.35;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+  z-index: 2;
+  pointer-events: none;
+}
+
 .overlay-panel {
   position: absolute;
   inset: 0;
