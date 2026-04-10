@@ -15,7 +15,7 @@ body {
 }
 
 .game-shell {
-  width: min(100%, 460px);
+  width: min(100%, 540px);
 }
 
 h1,
@@ -29,13 +29,19 @@ h1 {
 
 canvas {
   width: 100%;
-  max-width: 400px;
+  max-width: 480px;
   height: auto;
   display: block;
   margin: 0 auto;
   background: #000;
   border: 4px solid #2f241f;
   border-radius: 18px;
+}
+
+.game-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
 }
 
 .controls {
@@ -64,6 +70,15 @@ button {
   background: #ffcf5c;
   color: #2f241f;
   cursor: pointer;
+}
+
+.restart-button {
+  min-width: 160px;
+  background: #ff8f5c;
+}
+
+.hidden {
+  display: none;
 }
 
 .ranking-panel {
