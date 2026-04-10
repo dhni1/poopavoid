@@ -108,7 +108,9 @@ const pressedKeys = {
 const pointerControl = {
   active: false,
   pointerId: null,
-  targetX: getInitialPlayerX()
+  targetX: getInitialPlayerX(),
+  startCanvasX: 0,
+  startPlayerX: getInitialPlayerX()
 };
 
 let poopSpriteReady = false;
@@ -221,7 +223,9 @@ function getCanvasXFromClientX(clientX) {
 }
 
 function updatePointerTarget(clientX) {
-  pointerControl.targetX = getCanvasXFromClientX(clientX) - player.w / 2;
+  const currentCanvasX = getCanvasXFromClientX(clientX);
+  const deltaX = currentCanvasX - pointerControl.startCanvasX;
+  pointerControl.targetX = pointerControl.startPlayerX + deltaX;
 }
 
 function startPointerControl(event) {
@@ -229,7 +233,9 @@ function startPointerControl(event) {
 
   pointerControl.active = true;
   pointerControl.pointerId = event.pointerId;
-  updatePointerTarget(event.clientX);
+  pointerControl.startCanvasX = getCanvasXFromClientX(event.clientX);
+  pointerControl.startPlayerX = player.x;
+  pointerControl.targetX = player.x;
   if (canvas.setPointerCapture) {
     canvas.setPointerCapture(event.pointerId);
   }
@@ -251,6 +257,8 @@ function endPointerControl(event) {
   }
   pointerControl.active = false;
   pointerControl.pointerId = null;
+  pointerControl.startCanvasX = 0;
+  pointerControl.startPlayerX = player.x;
 }
 
 function drawPlayer() {
@@ -666,6 +674,8 @@ function beginGame() {
   pointerControl.active = false;
   pointerControl.pointerId = null;
   pointerControl.targetX = getInitialPlayerX();
+  pointerControl.startCanvasX = 0;
+  pointerControl.startPlayerX = getInitialPlayerX();
   pressedKeys.left = false;
   pressedKeys.right = false;
   resetPlayerPosition();
