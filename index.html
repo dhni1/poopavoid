@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>똥을 피해라!</title>
+<style>
+  body { text-align:center; background:#eee; }
+  canvas { background:rgb(0, 0, 0); display:block; margin:auto; }
+</style>
+</head>
+<body>
+
+<h1>💩 똥을 피해라!</h1>
+<canvas id="game" width="400" height="600"></canvas>
+<br>
+<input id="name" placeholder="이름 입력">
+<button onclick="saveScore()">랭킹 저장</button>
+
+<h2>🏆 랭킹</h2>
+<ol id="ranking"></ol>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let player = {x:180, y:550, w:40, h:40};
+let poops = [];
+let speed = 3;
+let score = 0;
+let gameOver = false;
+
+function spawnPoop() {
+  poops.push({
+    x: Math.random()*360,
+    y: 0,
+    w: 40,
+    h: 40
+  });
+}
+
+setInterval(spawnPoop, 1000);
+
+document.addEventListener("keydown", e=>{
+  if(e.key==="ArrowLeft") player.x -= 10;
+  if(e.key==="ArrowRight") player.x += 10;
+});
+
+function update() {
+  if(gameOver) return;
+
+  ctx.clearRect(0,0,400,600);
+
+  // 플레이어
+  ctx.fillStyle="blue";
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+
+  // 똥
+  ctx.fillStyle="brown";
+  poops.forEach(p=>{
+    p.y += speed;
+    ctx.fillRect(p.x,p.y,p.w,p.h);
+
+    // 충돌
+    if(
+      player.x < p.x + p.w &&
+      player.x + player.w > p.x &&
+      player.y < p.y + p.h &&
+      player.y + player.h > p.y
+    ){
+      gameOver = true;
+      alert("게임오버! 점수: " + score);
+    }
+
+    // 점수 증가
+    if(p.y > 600){
+      score++;
+      p.y = 0;
+      p.x = Math.random()*360;
+    }
+  });
+
+  // 점수 표시
+  ctx.fillStyle="black";
+  ctx.fillText("Score: "+score, 10, 20);
+
+  requestAnimationFrame(update);
+}
+
+update();
+
+
+// ===== 랭킹 =====
+function saveScore(){
+  let name = document.getElementById("name").value || "익명";
+  let ranking = JSON.parse(localStorage.getItem("ranking")) || [];
+
+  ranking.push({name, score});
+  ranking.sort((a,b)=>b.score - a.score);
+  ranking = ranking.slice(0,10);
+
+  localStorage.setItem("ranking", JSON.stringify(ranking));
+  showRanking();
+}
+
+function showRanking(){
+  let ranking = JSON.parse(localStorage.getItem("ranking")) || [];
+  let list = document.getElementById("ranking");
+  list.innerHTML="";
+
+  ranking.forEach(r=>{
+    let li = document.createElement("li");
+    li.textContent = `${r.name} - ${r.score}`;
+    list.appendChild(li);
+  });
+}
+
+showRanking();
+</script>
+
+</body>
+</html>
