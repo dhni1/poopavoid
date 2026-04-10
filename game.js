@@ -105,6 +105,11 @@ const pressedKeys = {
   left: false,
   right: false
 };
+const pointerControl = {
+  active: false,
+  pointerId: null,
+  targetX: getInitialPlayerX()
+};
 
 let poopSpriteReady = false;
 let shieldSpriteReady = false;
@@ -207,6 +212,45 @@ function showNotification(message) {
 
 function getRandomSpawnX(size) {
   return Math.random() * (CANVAS_WIDTH - size);
+}
+
+function getCanvasXFromClientX(clientX) {
+  const canvasRect = canvas.getBoundingClientRect();
+  const relativeX = (clientX - canvasRect.left) / canvasRect.width;
+  return clamp(relativeX * CANVAS_WIDTH, 0, CANVAS_WIDTH);
+}
+
+function updatePointerTarget(clientX) {
+  pointerControl.targetX = getCanvasXFromClientX(clientX) - player.w / 2;
+}
+
+function startPointerControl(event) {
+  if (!gameStarted || gameOver) return;
+
+  pointerControl.active = true;
+  pointerControl.pointerId = event.pointerId;
+  updatePointerTarget(event.clientX);
+  if (canvas.setPointerCapture) {
+    canvas.setPointerCapture(event.pointerId);
+  }
+  event.preventDefault();
+}
+
+function movePointerControl(event) {
+  if (!pointerControl.active || pointerControl.pointerId !== event.pointerId) return;
+
+  updatePointerTarget(event.clientX);
+  event.preventDefault();
+}
+
+function endPointerControl(event) {
+  if (pointerControl.pointerId !== event.pointerId) return;
+
+  if (canvas.hasPointerCapture && canvas.hasPointerCapture(event.pointerId)) {
+    canvas.releasePointerCapture(event.pointerId);
+  }
+  pointerControl.active = false;
+  pointerControl.pointerId = null;
 }
 
 function drawPlayer() {
@@ -337,6 +381,12 @@ function drawItem(item) {
 }
 
 function updatePlayer(deltaTime) {
+  if (pointerControl.active) {
+    player.x = clamp(pointerControl.targetX, 0, CANVAS_WIDTH - player.w);
+    player.vx = 0;
+    return;
+  }
+
   const moveDirection = Number(pressedKeys.right) - Number(pressedKeys.left);
   const targetVelocity = moveDirection * PLAYER_SPEED;
   const smoothing = Math.min(1, deltaTime * PLAYER_SMOOTHING);
@@ -613,6 +663,9 @@ function beginGame() {
   notificationTimer = 0;
   nextShieldSpawnScore = SHIELD_SPAWN_SCORE_STEP;
   nextSlowSpawnScore = SLOW_SPAWN_SCORE_STEP;
+  pointerControl.active = false;
+  pointerControl.pointerId = null;
+  pointerControl.targetX = getInitialPlayerX();
   pressedKeys.left = false;
   pressedKeys.right = false;
   resetPlayerPosition();
@@ -663,6 +716,11 @@ startGameButton.addEventListener("click", beginGame);
 restartGameButton.addEventListener("click", restartGame);
 toggleRankingButton.addEventListener("click", toggleRanking);
 closeRankingButton.addEventListener("click", () => setRankingVisibility(false));
+canvas.addEventListener("pointerdown", startPointerControl);
+canvas.addEventListener("pointermove", movePointerControl);
+canvas.addEventListener("pointerup", endPointerControl);
+canvas.addEventListener("pointercancel", endPointerControl);
+canvas.addEventListener("pointerleave", endPointerControl);
 window.addEventListener("resize", resizeGameLayout);
 
 resizeGameLayout();
