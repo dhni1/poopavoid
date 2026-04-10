@@ -1,27 +1,32 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>똥을 피해라!</title>
-<style>
-  body { text-align:center; background:#eee; }
-  canvas { background:rgb(0, 0, 0); display:block; margin:auto; }
-</style>
+<link rel="stylesheet" href="design.css">
 </head>
 <body>
 
+<main class="game-shell">
 <h1>💩 똥을 피해라!</h1>
 <canvas id="game" width="400" height="600"></canvas>
-<br>
-<input id="name" placeholder="이름 입력">
-<button onclick="saveScore()">랭킹 저장</button>
 
-<h2>🏆 랭킹</h2>
-<ol id="ranking"></ol>
+<div class="controls">
+  <input id="name" placeholder="계정명 입력">
+  <button type="button" onclick="saveScore()">랭킹 저장</button>
+</div>
+
+<section class="ranking-panel">
+  <h2>🏆 랭킹</h2>
+  <ol id="ranking"></ol>
+</section>
+</main>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const RANKING_KEY = "ranking";
 
 let player = {x:180, y:550, w:40, h:40};
 let poops = [];
@@ -80,7 +85,8 @@ function update() {
   });
 
   // 점수 표시
-  ctx.fillStyle="black";
+  ctx.fillStyle="white";
+  ctx.font = "20px sans-serif";
   ctx.fillText("Score: "+score, 10, 20);
 
   requestAnimationFrame(update);
@@ -90,26 +96,94 @@ update();
 
 
 // ===== 랭킹 =====
+function normalizeRanking(rawRanking){
+  const rankingMap = new Map();
+
+  rawRanking.forEach(entry => {
+    if (!entry) return;
+
+    const name = String(entry.name || "익명").trim() || "익명";
+    const accountKey = String(entry.accountKey || name).trim().toLowerCase();
+    const scoreValue = Number(entry.score);
+
+    if (!Number.isFinite(scoreValue)) return;
+
+    const existing = rankingMap.get(accountKey);
+    if (!existing || scoreValue > existing.score) {
+      rankingMap.set(accountKey, {
+        name,
+        accountKey,
+        score: scoreValue
+      });
+    }
+  });
+
+  return [...rankingMap.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+}
+
+function readStoredRanking(){
+  try {
+    const savedRanking = JSON.parse(localStorage.getItem(RANKING_KEY));
+    return Array.isArray(savedRanking) ? savedRanking : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function loadRanking(){
+  return normalizeRanking(readStoredRanking());
+}
+
+function persistRanking(ranking){
+  localStorage.setItem(RANKING_KEY, JSON.stringify(normalizeRanking(ranking)));
+}
+
 function saveScore(){
-  let name = document.getElementById("name").value || "익명";
-  let ranking = JSON.parse(localStorage.getItem("ranking")) || [];
+  const nameInput = document.getElementById("name");
+  const name = nameInput.value.trim() || "익명";
+  const accountKey = name.toLowerCase();
+  const ranking = loadRanking();
+  const existingEntry = ranking.find(entry => entry.accountKey === accountKey);
 
-  ranking.push({name, score});
-  ranking.sort((a,b)=>b.score - a.score);
-  ranking = ranking.slice(0,10);
+  if (existingEntry) {
+    if (score > existingEntry.score) {
+      existingEntry.name = name;
+      existingEntry.score = score;
+      persistRanking(ranking);
+      showRanking();
+      alert(`최고기록이 갱신됐어요! ${name} - ${score}점`);
+      return;
+    }
 
-  localStorage.setItem("ranking", JSON.stringify(ranking));
+    alert(`${name} 계정의 최고기록은 ${existingEntry.score}점이라 저장되지 않았어요.`);
+    return;
+  }
+
+  ranking.push({name, accountKey, score});
+  persistRanking(ranking);
   showRanking();
+  alert(`랭킹에 저장됐어요! ${name} - ${score}점`);
 }
 
 function showRanking(){
-  let ranking = JSON.parse(localStorage.getItem("ranking")) || [];
-  let list = document.getElementById("ranking");
+  const ranking = loadRanking();
+  const list = document.getElementById("ranking");
   list.innerHTML="";
+  persistRanking(ranking);
+
+  if (ranking.length === 0) {
+    const li = document.createElement("li");
+    li.className = "empty-ranking";
+    li.textContent = "아직 저장된 기록이 없어요.";
+    list.appendChild(li);
+    return;
+  }
 
   ranking.forEach(r=>{
-    let li = document.createElement("li");
-    li.textContent = `${r.name} - ${r.score}`;
+    const li = document.createElement("li");
+    li.textContent = `${r.name} - ${r.score}점`;
     list.appendChild(li);
   });
 }
