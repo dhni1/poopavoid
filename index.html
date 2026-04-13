@@ -8,6 +8,18 @@
 </head>
 <body>
 
+<aside class="auth-dock" aria-label="계정">
+  <p id="auth-status" class="overlay-help">로그인되지 않았어요. 아래에서 회원가입 또는 로그인을 해주세요.</p>
+  <input id="email-input" type="email" autocomplete="email" placeholder="이메일 입력">
+  <input id="password-input" type="password" autocomplete="current-password" minlength="6" placeholder="비밀번호 입력 (6자 이상)">
+  <div class="overlay-actions auth-actions">
+    <button id="sign-up" class="secondary-button" type="button">회원가입</button>
+    <button id="sign-in" class="primary-button" type="button">로그인</button>
+  </div>
+  <button id="sign-out" class="secondary-button hidden auth-logout" type="button">로그아웃</button>
+  <p id="auth-feedback" class="overlay-help"></p>
+</aside>
+
 <main class="game-shell">
 <h1>💩 똥을 피해라 💩</h1>
 
@@ -17,8 +29,8 @@
 
   <section id="start-panel" class="overlay-panel">
     <p class="overlay-title">게임 시작</p>
-    <p class="overlay-copy">닉네임을 입력하면 게임 오버 시 최고기록이 자동으로 랭킹에 저장됩니다.</p>
-    <input id="nickname-input" type="text" maxlength="20" placeholder="닉네임 입력">
+    <p class="overlay-copy">오른쪽 위에서 회원가입하거나 로그인한 뒤 게임을 시작하세요.</p>
+    <input id="nickname-input" type="text" maxlength="20" autocomplete="nickname" placeholder="닉네임 입력">
     <p id="nickname-help" class="overlay-help">닉네임 없이 시작하면 랭킹에는 올라가지 않아요.</p>
     <button id="start-game" class="primary-button" type="button">게임 시작</button>
   </section>
@@ -43,6 +55,7 @@
 </div>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="game.js" defer></script>
 
 </body>

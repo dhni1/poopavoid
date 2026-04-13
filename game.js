@@ -5,6 +5,13 @@ const startPanel = document.getElementById("start-panel");
 const startGameButton = document.getElementById("start-game");
 const nicknameInput = document.getElementById("nickname-input");
 const nicknameHelp = document.getElementById("nickname-help");
+const emailInput = document.getElementById("email-input");
+const passwordInput = document.getElementById("password-input");
+const signUpButton = document.getElementById("sign-up");
+const signInButton = document.getElementById("sign-in");
+const signOutButton = document.getElementById("sign-out");
+const authStatus = document.getElementById("auth-status");
+const authFeedback = document.getElementById("auth-feedback");
 const gameOverOverlay = document.getElementById("game-over-overlay");
 const finalScoreText = document.getElementById("final-score");
 const saveFeedback = document.getElementById("save-feedback");
@@ -59,6 +66,8 @@ const slowSpriteMarkup = `
 `;
 
 const RANKING_KEY = "ranking";
+const SUPABASE_URL = "https://cdnebizkdrhfkoipbwli.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_umMMRMpLRDRcuhTV1TVF_g_rWbCvRBL";
 const CANVAS_WIDTH = canvas.width;
 const CANVAS_HEIGHT = canvas.height;
 const POOP_SIZE = 42;
@@ -78,6 +87,12 @@ const SLOW_MULTIPLIER = 0.5;
 const NOTIFICATION_DURATION = 1.6;
 const ITEM_TYPE_SHIELD = "shield";
 const ITEM_TYPE_SLOW = "slow";
+const EMAIL_REDIRECT_URL = window.location.origin;
+
+const supabaseClient = window.supabase?.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
 
 const player = {
   x: 0,
@@ -100,6 +115,7 @@ let slowTimer = 0;
 let notificationTimer = 0;
 let nextShieldSpawnScore = SHIELD_SPAWN_SCORE_STEP;
 let nextSlowSpawnScore = SLOW_SPAWN_SCORE_STEP;
+let currentUser = null;
 
 const pressedKeys = {
   left: false,
@@ -202,6 +218,15 @@ function setFeedback(message, tone = "") {
   }
 }
 
+function setAuthFeedback(message, tone = "") {
+  authFeedback.textContent = message;
+  authFeedback.className = "overlay-help";
+
+  if (tone) {
+    authFeedback.classList.add(tone);
+  }
+}
+
 function setNotification(message = "") {
   gameNotification.textContent = message;
   gameNotification.classList.toggle("hidden", !message);
@@ -210,6 +235,198 @@ function setNotification(message = "") {
 function showNotification(message) {
   notificationTimer = NOTIFICATION_DURATION;
   setNotification(message);
+}
+
+function getSignedInNickname() {
+  if (!currentUser?.email) {
+    return "";
+  }
+
+  return currentUser.email.split("@")[0] || "";
+}
+
+function updateNicknameHelp() {
+  const typedName = nicknameInput.value.trim();
+  const fallbackName = getSignedInNickname();
+
+  if (typedName) {
+    nicknameHelp.textContent = `${typedName} 닉네임으로 최고기록이 저장됩니다.`;
+    return;
+  }
+
+  if (fallbackName) {
+    nicknameHelp.textContent = `닉네임을 비워두면 ${fallbackName} 이름으로 최고기록이 저장됩니다.`;
+    return;
+  }
+
+  nicknameHelp.textContent = "닉네임 없이 시작하면 랭킹에는 올라가지 않아요.";
+}
+
+function updateAuthUi() {
+  const isLoggedIn = Boolean(currentUser);
+  const signedInEmail = currentUser?.email ?? "";
+
+  authStatus.textContent = isLoggedIn
+    ? `${signedInEmail} 계정으로 로그인되어 있어요.`
+    : "로그인되지 않았어요. 아래에서 회원가입 또는 로그인을 해주세요.";
+
+  emailInput.classList.toggle("hidden", isLoggedIn);
+  passwordInput.classList.toggle("hidden", isLoggedIn);
+  signUpButton.classList.toggle("hidden", isLoggedIn);
+  signInButton.classList.toggle("hidden", isLoggedIn);
+  signOutButton.classList.toggle("hidden", !isLoggedIn);
+
+  emailInput.disabled = isLoggedIn;
+  passwordInput.disabled = isLoggedIn;
+  signUpButton.disabled = isLoggedIn;
+  signInButton.disabled = isLoggedIn;
+  signOutButton.disabled = !isLoggedIn;
+
+  updateNicknameHelp();
+}
+
+function getReadableAuthError(message = "") {
+  if (message.includes("Invalid login credentials")) {
+    return "이메일 또는 비밀번호가 맞지 않아요.";
+  }
+
+  if (message.includes("User already registered")) {
+    return "이미 가입된 이메일이에요. 바로 로그인해보세요.";
+  }
+
+  if (message.includes("Email not confirmed")) {
+    return "이메일 인증이 아직 완료되지 않았어요.";
+  }
+
+  return message || "로그인 처리 중 문제가 발생했어요.";
+}
+
+async function signUpWithEmail() {
+  if (!supabaseClient) {
+    setAuthFeedback("Supabase 연결이 준비되지 않았어요.", "warning");
+    return;
+  }
+
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+
+  if (!email || !password) {
+    setAuthFeedback("이메일과 비밀번호를 모두 입력해주세요.", "warning");
+    return;
+  }
+
+  if (password.length < 6) {
+    setAuthFeedback("비밀번호는 6자 이상이어야 해요.", "warning");
+    return;
+  }
+
+  signUpButton.disabled = true;
+  signInButton.disabled = true;
+  setAuthFeedback("회원가입을 처리하고 있어요.");
+
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: EMAIL_REDIRECT_URL
+    }
+  });
+
+  signUpButton.disabled = false;
+  signInButton.disabled = false;
+
+  if (error) {
+    setAuthFeedback(getReadableAuthError(error.message), "warning");
+    updateAuthUi();
+    return;
+  }
+
+  currentUser = data.user ?? data.session?.user ?? null;
+  passwordInput.value = "";
+  setAuthFeedback(
+    data.session
+      ? "회원가입이 완료됐어요. 바로 로그인된 상태예요."
+      : "회원가입이 완료됐어요. 이메일 인증 후 로그인해주세요.",
+    "success"
+  );
+  updateAuthUi();
+}
+
+async function signInWithEmail() {
+  if (!supabaseClient) {
+    setAuthFeedback("Supabase 연결이 준비되지 않았어요.", "warning");
+    return;
+  }
+
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+
+  if (!email || !password) {
+    setAuthFeedback("이메일과 비밀번호를 모두 입력해주세요.", "warning");
+    return;
+  }
+
+  signUpButton.disabled = true;
+  signInButton.disabled = true;
+  setAuthFeedback("로그인 중이에요.");
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  signUpButton.disabled = false;
+  signInButton.disabled = false;
+
+  if (error) {
+    setAuthFeedback(getReadableAuthError(error.message), "warning");
+    updateAuthUi();
+    return;
+  }
+
+  currentUser = data.user ?? null;
+  passwordInput.value = "";
+  setAuthFeedback("로그인됐어요. 이제 바로 게임을 시작할 수 있어요.", "success");
+  updateAuthUi();
+}
+
+async function signOutSession() {
+  if (!supabaseClient) {
+    return;
+  }
+
+  const { error } = await supabaseClient.auth.signOut();
+
+  if (error) {
+    setAuthFeedback(getReadableAuthError(error.message), "warning");
+    return;
+  }
+
+  currentUser = null;
+  setAuthFeedback("로그아웃됐어요.", "success");
+  updateAuthUi();
+}
+
+async function initializeAuth() {
+  if (!supabaseClient) {
+    authStatus.textContent = "Supabase 스크립트를 불러오지 못했어요.";
+    signUpButton.disabled = true;
+    signInButton.disabled = true;
+    startGameButton.disabled = true;
+    return;
+  }
+
+  const {
+    data: { session }
+  } = await supabaseClient.auth.getSession();
+
+  currentUser = session?.user ?? null;
+  updateAuthUi();
+
+  supabaseClient.auth.onAuthStateChange((_event, sessionState) => {
+    currentUser = sessionState?.user ?? null;
+    updateAuthUi();
+  });
 }
 
 function getRandomSpawnX(size) {
@@ -530,13 +747,15 @@ function showRanking() {
 }
 
 function saveRankingIfEligible() {
-  const name = currentNickname.trim();
+  const typedName = currentNickname.trim();
+  const fallbackName = getSignedInNickname();
+  const name = typedName || fallbackName;
 
   if (!name) {
     return "닉네임이 없어서 이번 기록은 랭킹에 저장되지 않았어요.";
   }
 
-  const accountKey = name.toLowerCase();
+  const accountKey = currentUser?.id || name.toLowerCase();
   const ranking = loadRanking();
   const existingEntry = ranking.find(entry => entry.accountKey === accountKey);
 
@@ -651,7 +870,12 @@ function update(timestamp) {
 }
 
 function beginGame() {
-  currentNickname = nicknameInput.value.trim();
+  if (!currentUser) {
+    setAuthFeedback("먼저 회원가입하거나 로그인해주세요.", "warning");
+    return;
+  }
+
+  currentNickname = nicknameInput.value.trim() || getSignedInNickname();
 
   if (currentNickname) {
     nicknameHelp.textContent = `${currentNickname} 닉네임으로 최고기록이 저장됩니다.`;
@@ -717,7 +941,11 @@ function handleKeyChange(event, isPressed) {
 document.addEventListener("keydown", event => {
   handleKeyChange(event, true);
 
-  if (event.key === "Enter" && !gameStarted) {
+  const isTypingField =
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement;
+
+  if (event.key === "Enter" && !gameStarted && !isTypingField) {
     beginGame();
   }
 });
@@ -726,6 +954,20 @@ startGameButton.addEventListener("click", beginGame);
 restartGameButton.addEventListener("click", restartGame);
 toggleRankingButton.addEventListener("click", toggleRanking);
 closeRankingButton.addEventListener("click", () => setRankingVisibility(false));
+signUpButton.addEventListener("click", signUpWithEmail);
+signInButton.addEventListener("click", signInWithEmail);
+signOutButton.addEventListener("click", signOutSession);
+nicknameInput.addEventListener("input", updateNicknameHelp);
+emailInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    signInWithEmail();
+  }
+});
+passwordInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    signInWithEmail();
+  }
+});
 canvas.addEventListener("pointerdown", startPointerControl);
 canvas.addEventListener("pointermove", movePointerControl);
 canvas.addEventListener("pointerup", endPointerControl);
@@ -734,7 +976,9 @@ canvas.addEventListener("pointerleave", endPointerControl);
 window.addEventListener("resize", resizeGameLayout);
 
 resizeGameLayout();
+initializeAuth();
 showRanking();
 setRankingVisibility(false);
 setOverlayVisibility(gameOverOverlay, false);
+updateNicknameHelp();
 drawIdleScreen();
