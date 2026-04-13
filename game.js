@@ -301,9 +301,12 @@ function updateAuthUi() {
   const signedInName = getSignedInNickname();
   const currentLoginId = sanitizeLoginId(currentUser?.user_metadata?.login_id || "");
   const isSignUpMode = authMode === "sign-up";
+  const accountLabel = currentLoginId
+    ? `${signedInName || "플레이어"}(${currentLoginId})`
+    : (signedInName || "플레이어");
 
   authStatus.textContent = isLoggedIn
-    ? `${signedInName || "플레이어"}(${currentLoginId}) 계정으로 로그인되어 있어요.`
+    ? `${accountLabel} 계정으로 로그인되어 있어요.`
     : isSignUpMode
       ? "이름, 아이디, 비밀번호를 입력해 회원가입하세요."
       : "아이디와 비밀번호로 로그인하세요.";
@@ -427,12 +430,19 @@ async function signUpWithCredentials() {
     return;
   }
 
-  currentUser = data.user ?? data.session?.user ?? null;
+  currentUser = data.session?.user ?? null;
   displayNameInput.value = "";
   loginIdInput.value = "";
   passwordInput.value = "";
-  setAuthFeedback("회원가입이 완료됐어요. 바로 로그인된 상태예요.", "success");
-  setAuthPanelOpen(false);
+  setAuthFeedback(
+    currentUser
+      ? "회원가입이 완료됐어요. 바로 로그인된 상태예요."
+      : "회원가입은 완료됐지만 아직 로그인 세션이 없어요. Supabase Email Confirm 설정을 꺼주세요.",
+    currentUser ? "success" : "warning"
+  );
+  if (currentUser) {
+    setAuthPanelOpen(false);
+  }
   updateAuthUi();
 }
 
