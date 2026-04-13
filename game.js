@@ -5,10 +5,15 @@ const startPanel = document.getElementById("start-panel");
 const startGameButton = document.getElementById("start-game");
 const nicknameInput = document.getElementById("nickname-input");
 const nicknameHelp = document.getElementById("nickname-help");
-const emailInput = document.getElementById("email-input");
+const authDock = document.getElementById("auth-dock");
+const authToggleButton = document.getElementById("auth-toggle");
+const authPanel = document.getElementById("auth-panel");
+const displayNameInput = document.getElementById("display-name-input");
+const loginIdInput = document.getElementById("login-id-input");
 const passwordInput = document.getElementById("password-input");
-const signUpButton = document.getElementById("sign-up");
-const signInButton = document.getElementById("sign-in");
+const authSubmitButton = document.getElementById("auth-submit");
+const authSwitchButton = document.getElementById("auth-switch");
+const authCloseButton = document.getElementById("auth-close");
 const signOutButton = document.getElementById("sign-out");
 const authStatus = document.getElementById("auth-status");
 const authFeedback = document.getElementById("auth-feedback");
@@ -88,7 +93,7 @@ const SLOW_MULTIPLIER = 0.5;
 const NOTIFICATION_DURATION = 1.6;
 const ITEM_TYPE_SHIELD = "shield";
 const ITEM_TYPE_SLOW = "slow";
-const EMAIL_REDIRECT_URL = window.location.origin;
+const INTERNAL_AUTH_DOMAIN = "poopavoid.local";
 
 const supabaseClient = window.supabase?.createClient(
   SUPABASE_URL,
@@ -117,6 +122,8 @@ let notificationTimer = 0;
 let nextShieldSpawnScore = SHIELD_SPAWN_SCORE_STEP;
 let nextSlowSpawnScore = SLOW_SPAWN_SCORE_STEP;
 let currentUser = null;
+let authMode = "sign-in";
+let isAuthPanelOpen = false;
 
 const pressedKeys = {
   left: false,
@@ -239,6 +246,16 @@ function showNotification(message) {
 }
 
 function getSignedInNickname() {
+  const metadataName = sanitizeNickname(currentUser?.user_metadata?.display_name || "");
+  if (metadataName) {
+    return metadataName;
+  }
+
+  const loginId = sanitizeLoginId(currentUser?.user_metadata?.login_id || "");
+  if (loginId) {
+    return loginId;
+  }
+
   if (!currentUser?.email) {
     return "";
   }
@@ -248,6 +265,18 @@ function getSignedInNickname() {
 
 function sanitizeNickname(value = "") {
   return String(value).trim().slice(0, 20);
+}
+
+function sanitizeLoginId(value = "") {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "")
+    .slice(0, 20);
+}
+
+function buildInternalEmail(loginId) {
+  return `${loginId}@${INTERNAL_AUTH_DOMAIN}`;
 }
 
 function updateNicknameHelp() {
@@ -269,22 +298,44 @@ function updateNicknameHelp() {
 
 function updateAuthUi() {
   const isLoggedIn = Boolean(currentUser);
-  const signedInEmail = currentUser?.email ?? "";
+  const signedInName = getSignedInNickname();
+  const currentLoginId = sanitizeLoginId(currentUser?.user_metadata?.login_id || "");
+  const isSignUpMode = authMode === "sign-up";
 
   authStatus.textContent = isLoggedIn
-    ? `${signedInEmail} 계정으로 로그인되어 있어요.`
-    : "로그인되지 않았어요. 아래에서 회원가입 또는 로그인을 해주세요.";
+    ? `${signedInName || "플레이어"}(${currentLoginId}) 계정으로 로그인되어 있어요.`
+    : isSignUpMode
+      ? "이름, 아이디, 비밀번호를 입력해 회원가입하세요."
+      : "아이디와 비밀번호로 로그인하세요.";
 
-  emailInput.classList.toggle("hidden", isLoggedIn);
+  authToggleButton.textContent = isLoggedIn
+    ? `${signedInName || currentLoginId || "내 계정"}`
+    : "로그인";
+
+  authSubmitButton.textContent = isLoggedIn
+    ? "로그인됨"
+    : isSignUpMode
+      ? "회원가입 완료"
+      : "로그인";
+
+  authSwitchButton.textContent = isLoggedIn
+    ? ""
+    : isSignUpMode
+      ? "로그인으로 돌아가기"
+      : "회원가입";
+
+  displayNameInput.classList.toggle("hidden", !isSignUpMode || isLoggedIn);
+  loginIdInput.classList.toggle("hidden", isLoggedIn);
   passwordInput.classList.toggle("hidden", isLoggedIn);
-  signUpButton.classList.toggle("hidden", isLoggedIn);
-  signInButton.classList.toggle("hidden", isLoggedIn);
+  authSubmitButton.classList.toggle("hidden", isLoggedIn);
+  authSwitchButton.classList.toggle("hidden", isLoggedIn);
+  authCloseButton.classList.toggle("hidden", false);
   signOutButton.classList.toggle("hidden", !isLoggedIn);
 
-  emailInput.disabled = isLoggedIn;
+  displayNameInput.disabled = isLoggedIn || !isSignUpMode;
+  loginIdInput.disabled = isLoggedIn;
   passwordInput.disabled = isLoggedIn;
-  signUpButton.disabled = isLoggedIn;
-  signInButton.disabled = isLoggedIn;
+  authSubmitButton.disabled = isLoggedIn;
   signOutButton.disabled = !isLoggedIn;
 
   updateNicknameHelp();
@@ -292,15 +343,11 @@ function updateAuthUi() {
 
 function getReadableAuthError(message = "") {
   if (message.includes("Invalid login credentials")) {
-    return "이메일 또는 비밀번호가 맞지 않아요.";
+    return "아이디 또는 비밀번호가 맞지 않아요.";
   }
 
   if (message.includes("User already registered")) {
-    return "이미 가입된 이메일이에요. 바로 로그인해보세요.";
-  }
-
-  if (message.includes("Email not confirmed")) {
-    return "이메일 인증이 아직 완료되지 않았어요.";
+    return "이미 사용 중인 아이디예요. 다른 아이디로 가입하거나 로그인해보세요.";
   }
 
   return message || "로그인 처리 중 문제가 발생했어요.";
@@ -318,17 +365,31 @@ function getReadableRankingError(message = "") {
   return "온라인 랭킹 처리 중 문제가 발생했어요.";
 }
 
-async function signUpWithEmail() {
+function setAuthPanelOpen(shouldOpen) {
+  isAuthPanelOpen = shouldOpen;
+  authDock.classList.toggle("is-open", shouldOpen);
+  authDock.classList.toggle("is-collapsed", !shouldOpen);
+  authPanel.classList.toggle("hidden", !shouldOpen);
+}
+
+function setAuthMode(nextMode) {
+  authMode = nextMode;
+  setAuthFeedback("");
+  updateAuthUi();
+}
+
+async function signUpWithCredentials() {
   if (!supabaseClient) {
     setAuthFeedback("Supabase 연결이 준비되지 않았어요.", "warning");
     return;
   }
 
-  const email = emailInput.value.trim();
+  const displayName = sanitizeNickname(displayNameInput.value);
+  const loginId = sanitizeLoginId(loginIdInput.value);
   const password = passwordInput.value;
 
-  if (!email || !password) {
-    setAuthFeedback("이메일과 비밀번호를 모두 입력해주세요.", "warning");
+  if (!displayName || !loginId || !password) {
+    setAuthFeedback("이름, 아이디, 비밀번호를 모두 입력해주세요.", "warning");
     return;
   }
 
@@ -337,20 +398,28 @@ async function signUpWithEmail() {
     return;
   }
 
-  signUpButton.disabled = true;
-  signInButton.disabled = true;
+  if (loginId.length < 3) {
+    setAuthFeedback("아이디는 3자 이상 입력해주세요.", "warning");
+    return;
+  }
+
+  authSubmitButton.disabled = true;
+  authSwitchButton.disabled = true;
   setAuthFeedback("회원가입을 처리하고 있어요.");
 
   const { data, error } = await supabaseClient.auth.signUp({
-    email,
+    email: buildInternalEmail(loginId),
     password,
     options: {
-      emailRedirectTo: EMAIL_REDIRECT_URL
+      data: {
+        display_name: displayName,
+        login_id: loginId
+      }
     }
   });
 
-  signUpButton.disabled = false;
-  signInButton.disabled = false;
+  authSubmitButton.disabled = false;
+  authSwitchButton.disabled = false;
 
   if (error) {
     setAuthFeedback(getReadableAuthError(error.message), "warning");
@@ -359,41 +428,39 @@ async function signUpWithEmail() {
   }
 
   currentUser = data.user ?? data.session?.user ?? null;
+  displayNameInput.value = "";
+  loginIdInput.value = "";
   passwordInput.value = "";
-  setAuthFeedback(
-    data.session
-      ? "회원가입이 완료됐어요. 바로 로그인된 상태예요."
-      : "회원가입이 완료됐어요. 이메일 인증 후 로그인해주세요.",
-    "success"
-  );
+  setAuthFeedback("회원가입이 완료됐어요. 바로 로그인된 상태예요.", "success");
+  setAuthPanelOpen(false);
   updateAuthUi();
 }
 
-async function signInWithEmail() {
+async function signInWithCredentials() {
   if (!supabaseClient) {
     setAuthFeedback("Supabase 연결이 준비되지 않았어요.", "warning");
     return;
   }
 
-  const email = emailInput.value.trim();
+  const loginId = sanitizeLoginId(loginIdInput.value);
   const password = passwordInput.value;
 
-  if (!email || !password) {
-    setAuthFeedback("이메일과 비밀번호를 모두 입력해주세요.", "warning");
+  if (!loginId || !password) {
+    setAuthFeedback("아이디와 비밀번호를 모두 입력해주세요.", "warning");
     return;
   }
 
-  signUpButton.disabled = true;
-  signInButton.disabled = true;
+  authSubmitButton.disabled = true;
+  authSwitchButton.disabled = true;
   setAuthFeedback("로그인 중이에요.");
 
   const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email,
+    email: buildInternalEmail(loginId),
     password
   });
 
-  signUpButton.disabled = false;
-  signInButton.disabled = false;
+  authSubmitButton.disabled = false;
+  authSwitchButton.disabled = false;
 
   if (error) {
     setAuthFeedback(getReadableAuthError(error.message), "warning");
@@ -402,8 +469,10 @@ async function signInWithEmail() {
   }
 
   currentUser = data.user ?? null;
+  loginIdInput.value = "";
   passwordInput.value = "";
   setAuthFeedback("로그인됐어요. 이제 바로 게임을 시작할 수 있어요.", "success");
+  setAuthPanelOpen(false);
   updateAuthUi();
 }
 
@@ -420,6 +489,8 @@ async function signOutSession() {
   }
 
   currentUser = null;
+  setAuthMode("sign-in");
+  setAuthPanelOpen(false);
   setAuthFeedback("로그아웃됐어요.", "success");
   updateAuthUi();
 }
@@ -427,8 +498,7 @@ async function signOutSession() {
 async function initializeAuth() {
   if (!supabaseClient) {
     authStatus.textContent = "Supabase 스크립트를 불러오지 못했어요.";
-    signUpButton.disabled = true;
-    signInButton.disabled = true;
+    authSubmitButton.disabled = true;
     startGameButton.disabled = true;
     return;
   }
@@ -438,6 +508,7 @@ async function initializeAuth() {
   } = await supabaseClient.auth.getSession();
 
   currentUser = session?.user ?? null;
+  setAuthMode("sign-in");
   updateAuthUi();
 
   supabaseClient.auth.onAuthStateChange((_event, sessionState) => {
@@ -1035,18 +1106,49 @@ startGameButton.addEventListener("click", beginGame);
 restartGameButton.addEventListener("click", restartGame);
 toggleRankingButton.addEventListener("click", toggleRanking);
 closeRankingButton.addEventListener("click", () => setRankingVisibility(false));
-signUpButton.addEventListener("click", signUpWithEmail);
-signInButton.addEventListener("click", signInWithEmail);
+authToggleButton.addEventListener("click", () => {
+  setAuthPanelOpen(!isAuthPanelOpen);
+  updateAuthUi();
+});
+authSubmitButton.addEventListener("click", () => {
+  if (authMode === "sign-up") {
+    void signUpWithCredentials();
+    return;
+  }
+
+  void signInWithCredentials();
+});
+authSwitchButton.addEventListener("click", () => {
+  setAuthMode(authMode === "sign-up" ? "sign-in" : "sign-up");
+});
+authCloseButton.addEventListener("click", () => {
+  setAuthPanelOpen(false);
+});
 signOutButton.addEventListener("click", signOutSession);
 nicknameInput.addEventListener("input", updateNicknameHelp);
-emailInput.addEventListener("keydown", event => {
+displayNameInput.addEventListener("keydown", event => {
+  if (event.key === "Enter" && authMode === "sign-up") {
+    void signUpWithCredentials();
+  }
+});
+loginIdInput.addEventListener("keydown", event => {
   if (event.key === "Enter") {
-    signInWithEmail();
+    if (authMode === "sign-up") {
+      void signUpWithCredentials();
+      return;
+    }
+
+    void signInWithCredentials();
   }
 });
 passwordInput.addEventListener("keydown", event => {
   if (event.key === "Enter") {
-    signInWithEmail();
+    if (authMode === "sign-up") {
+      void signUpWithCredentials();
+      return;
+    }
+
+    void signInWithCredentials();
   }
 });
 canvas.addEventListener("pointerdown", startPointerControl);
@@ -1062,4 +1164,5 @@ void showRanking();
 setRankingVisibility(false);
 setOverlayVisibility(gameOverOverlay, false);
 updateNicknameHelp();
+setAuthPanelOpen(false);
 drawIdleScreen();
