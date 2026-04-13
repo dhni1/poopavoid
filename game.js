@@ -65,7 +65,8 @@ const slowSpriteMarkup = `
   </svg>
 `;
 
-const RANKING_KEY = "ranking";
+const RANKING_TABLE = "rankings";
+const RANKING_LIMIT = 10;
 const SUPABASE_URL = "https://cdnebizkdrhfkoipbwli.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_umMMRMpLRDRcuhTV1TVF_g_rWbCvRBL";
 const CANVAS_WIDTH = canvas.width;
@@ -245,6 +246,10 @@ function getSignedInNickname() {
   return currentUser.email.split("@")[0] || "";
 }
 
+function sanitizeNickname(value = "") {
+  return String(value).trim().slice(0, 20);
+}
+
 function updateNicknameHelp() {
   const typedName = nicknameInput.value.trim();
   const fallbackName = getSignedInNickname();
@@ -299,6 +304,18 @@ function getReadableAuthError(message = "") {
   }
 
   return message || "로그인 처리 중 문제가 발생했어요.";
+}
+
+function getReadableRankingError(message = "") {
+  if (message.includes('relation "public.rankings" does not exist')) {
+    return "Supabase에 rankings 테이블이 아직 없어요. SQL Editor에서 랭킹 테이블을 먼저 만들어주세요.";
+  }
+
+  if (message.includes("row-level security")) {
+    return "랭킹 저장 권한이 없어요. Supabase RLS 정책을 확인해주세요.";
+  }
+
+  return "온라인 랭킹 처리 중 문제가 발생했어요.";
 }
 
 async function signUpWithEmail() {
@@ -688,8 +705,8 @@ function normalizeRanking(rawRanking) {
   rawRanking.forEach(entry => {
     if (!entry) return;
 
-    const name = String(entry.name || "").trim();
-    const accountKey = String(entry.accountKey || name).trim().toLowerCase();
+    const name = sanitizeNickname(entry.nickname || entry.name || "");
+    const accountKey = String(entry.user_id || entry.accountKey || name).trim().toLowerCase();
     const scoreValue = Number(entry.score);
 
     if (!name || !accountKey || !Number.isFinite(scoreValue)) return;
@@ -706,30 +723,30 @@ function normalizeRanking(rawRanking) {
 
   return [...rankingMap.values()]
     .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+    .slice(0, RANKING_LIMIT);
 }
 
-function readStoredRanking() {
-  try {
-    const savedRanking = JSON.parse(localStorage.getItem(RANKING_KEY));
-    return Array.isArray(savedRanking) ? savedRanking : [];
-  } catch (error) {
-    return [];
+async function loadRanking() {
+  if (!supabaseClient) {
+    throw new Error("Supabase client is not available.");
   }
+
+  const { data, error } = await supabaseClient
+    .from(RANKING_TABLE)
+    .select("user_id, nickname, score, updated_at")
+    .order("score", { ascending: false })
+    .order("updated_at", { ascending: true })
+    .limit(RANKING_LIMIT);
+
+  if (error) {
+    throw error;
+  }
+
+  return normalizeRanking(data || []);
 }
 
-function loadRanking() {
-  return normalizeRanking(readStoredRanking());
-}
-
-function persistRanking(ranking) {
-  localStorage.setItem(RANKING_KEY, JSON.stringify(normalizeRanking(ranking)));
-}
-
-function showRanking() {
-  const ranking = loadRanking();
+function renderRanking(ranking) {
   rankingList.innerHTML = "";
-  persistRanking(ranking);
 
   if (ranking.length === 0) {
     const li = document.createElement("li");
@@ -746,36 +763,94 @@ function showRanking() {
   });
 }
 
-function saveRankingIfEligible() {
-  const typedName = currentNickname.trim();
+function renderRankingMessage(message) {
+  rankingList.innerHTML = "";
+  const li = document.createElement("li");
+  li.className = "empty-ranking";
+  li.textContent = message;
+  rankingList.appendChild(li);
+}
+
+async function showRanking() {
+  renderRankingMessage("온라인 랭킹을 불러오는 중이에요...");
+
+  try {
+    const ranking = await loadRanking();
+    renderRanking(ranking);
+  } catch (error) {
+    console.error(error);
+    renderRankingMessage(getReadableRankingError(error.message));
+  }
+}
+
+async function saveRankingIfEligible() {
+  const typedName = sanitizeNickname(currentNickname);
   const fallbackName = getSignedInNickname();
-  const name = typedName || fallbackName;
+  const name = sanitizeNickname(typedName || fallbackName);
 
   if (!name) {
-    return "닉네임이 없어서 이번 기록은 랭킹에 저장되지 않았어요.";
+    return {
+      message: "닉네임이 없어서 이번 기록은 랭킹에 저장되지 않았어요.",
+      tone: "warning"
+    };
   }
 
-  const accountKey = currentUser?.id || name.toLowerCase();
-  const ranking = loadRanking();
-  const existingEntry = ranking.find(entry => entry.accountKey === accountKey);
+  if (!currentUser?.id) {
+    return {
+      message: "로그인 정보가 없어서 랭킹을 저장할 수 없어요.",
+      tone: "warning"
+    };
+  }
 
-  if (existingEntry) {
-    if (score > existingEntry.score) {
-      existingEntry.name = name;
-      existingEntry.score = score;
-      persistRanking(ranking);
-      showRanking();
-      return `최고기록이 갱신됐어요! ${name} - ${score}점`;
+  try {
+    const { data: existingEntry, error: loadError } = await supabaseClient
+      .from(RANKING_TABLE)
+      .select("user_id, nickname, score")
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+
+    if (loadError) {
+      throw loadError;
     }
 
-    showRanking();
-    return `${name}의 최고기록은 ${existingEntry.score}점이라 랭킹은 유지됐어요.`;
-  }
+    if (existingEntry && Number(existingEntry.score) >= score) {
+      await showRanking();
+      return {
+        message: `${name}의 최고기록은 ${existingEntry.score}점이라 랭킹은 유지됐어요.`,
+        tone: "warning"
+      };
+    }
 
-  ranking.push({ name, accountKey, score });
-  persistRanking(ranking);
-  showRanking();
-  return `랭킹에 등록됐어요! ${name} - ${score}점`;
+    const { error: upsertError } = await supabaseClient
+      .from(RANKING_TABLE)
+      .upsert(
+        {
+          user_id: currentUser.id,
+          nickname: name,
+          score,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (upsertError) {
+      throw upsertError;
+    }
+
+    await showRanking();
+    return {
+      message: existingEntry
+        ? `최고기록이 갱신됐어요! ${name} - ${score}점`
+        : `온라인 랭킹에 등록됐어요! ${name} - ${score}점`,
+      tone: "success"
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      message: getReadableRankingError(error.message),
+      tone: "warning"
+    };
+  }
 }
 
 function endGame() {
@@ -789,8 +864,14 @@ function endGame() {
   setNotification("");
 
   finalScoreText.textContent = `점수: ${score}점`;
-  setFeedback(saveRankingIfEligible());
+  setFeedback("온라인 랭킹에 점수를 저장하고 있어요...");
   setOverlayVisibility(gameOverOverlay, true);
+  void finalizeRankingSave();
+}
+
+async function finalizeRankingSave() {
+  const result = await saveRankingIfEligible();
+  setFeedback(result.message, result.tone);
 }
 
 function updatePoops(deltaTime) {
@@ -920,7 +1001,7 @@ function restartGame() {
 
 function toggleRanking() {
   const shouldShow = rankingPanel.classList.contains("hidden");
-  showRanking();
+  void showRanking();
   setRankingVisibility(shouldShow);
 }
 
@@ -977,7 +1058,7 @@ window.addEventListener("resize", resizeGameLayout);
 
 resizeGameLayout();
 initializeAuth();
-showRanking();
+void showRanking();
 setRankingVisibility(false);
 setOverlayVisibility(gameOverOverlay, false);
 updateNicknameHelp();
