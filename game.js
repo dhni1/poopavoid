@@ -3,8 +3,6 @@ const ctx = canvas.getContext("2d");
 const gameShell = document.querySelector(".game-shell");
 const startPanel = document.getElementById("start-panel");
 const startGameButton = document.getElementById("start-game");
-const nicknameInput = document.getElementById("nickname-input");
-const nicknameHelp = document.getElementById("nickname-help");
 const authDock = document.getElementById("auth-dock");
 const authToggleButton = document.getElementById("auth-toggle");
 const authPanel = document.getElementById("auth-panel");
@@ -72,6 +70,7 @@ const slowSpriteMarkup = `
 
 const RANKING_TABLE = "rankings";
 const RANKING_LIMIT = 10;
+const LEGACY_RANKING_STORAGE_KEYS = ["ranking"];
 const SUPABASE_URL = "https://cdnebizkdrhfkoipbwli.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_umMMRMpLRDRcuhTV1TVF_g_rWbCvRBL";
 const CANVAS_WIDTH = canvas.width;
@@ -115,7 +114,6 @@ let gameOver = false;
 let gameStarted = false;
 let spawnTimer = 0;
 let lastFrameTime = 0;
-let currentNickname = "";
 let shieldTimer = 0;
 let slowTimer = 0;
 let notificationTimer = 0;
@@ -274,21 +272,14 @@ function buildInternalCredential(loginId) {
   return `${loginId}@${INTERNAL_AUTH_NAMESPACE}`;
 }
 
-function updateNicknameHelp() {
-  const typedName = nicknameInput.value.trim();
-  const fallbackName = getSignedInNickname();
-
-  if (typedName) {
-    nicknameHelp.textContent = `${typedName} 닉네임으로 최고기록이 저장됩니다.`;
-    return;
+function clearLegacyRankingStorage() {
+  try {
+    LEGACY_RANKING_STORAGE_KEYS.forEach(storageKey => {
+      window.localStorage.removeItem(storageKey);
+    });
+  } catch (error) {
+    console.warn("Failed to clear legacy ranking storage.", error);
   }
-
-  if (fallbackName) {
-    nicknameHelp.textContent = `닉네임을 비워두면 ${fallbackName} 이름으로 최고기록이 저장됩니다.`;
-    return;
-  }
-
-  nicknameHelp.textContent = "닉네임 없이 시작하면 랭킹에는 올라가지 않아요.";
 }
 
 function updateAuthUi() {
@@ -335,8 +326,6 @@ function updateAuthUi() {
   passwordInput.disabled = isLoggedIn;
   authSubmitButton.disabled = isLoggedIn;
   signOutButton.disabled = !isLoggedIn;
-
-  updateNicknameHelp();
 }
 
 function getReadableAuthError(message = "") {
@@ -860,13 +849,12 @@ async function showRanking() {
 }
 
 async function saveRankingIfEligible() {
-  const typedName = sanitizeNickname(currentNickname);
-  const fallbackName = getSignedInNickname();
-  const name = sanitizeNickname(typedName || fallbackName);
+  const loginId = sanitizeLoginId(currentUser?.user_metadata?.login_id || "");
+  const name = loginId;
 
   if (!name) {
     return {
-      message: "닉네임이 없어서 이번 기록은 랭킹에 저장되지 않았어요.",
+      message: "아이디 정보가 없어서 이번 기록은 랭킹에 저장되지 않았어요.",
       tone: "warning"
     };
   }
@@ -1032,14 +1020,6 @@ function beginGame() {
     return;
   }
 
-  currentNickname = nicknameInput.value.trim() || getSignedInNickname();
-
-  if (currentNickname) {
-    nicknameHelp.textContent = `${currentNickname} 닉네임으로 최고기록이 저장됩니다.`;
-  } else {
-    nicknameHelp.textContent = "닉네임 없이 시작하면 랭킹에는 올라가지 않아요.";
-  }
-
   score = 0;
   poops = [];
   items = [];
@@ -1130,7 +1110,6 @@ authCloseButton.addEventListener("click", () => {
   setAuthPanelOpen(false);
 });
 signOutButton.addEventListener("click", signOutSession);
-nicknameInput.addEventListener("input", updateNicknameHelp);
 displayNameInput.addEventListener("keydown", event => {
   if (event.key === "Enter" && authMode === "sign-up") {
     void signUpWithCredentials();
@@ -1164,10 +1143,10 @@ canvas.addEventListener("pointerleave", endPointerControl);
 window.addEventListener("resize", resizeGameLayout);
 
 resizeGameLayout();
+clearLegacyRankingStorage();
 initializeAuth();
 void showRanking();
 setRankingVisibility(false);
 setOverlayVisibility(gameOverOverlay, false);
-updateNicknameHelp();
 setAuthPanelOpen(false);
 drawIdleScreen();
