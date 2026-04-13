@@ -93,7 +93,7 @@ const SLOW_MULTIPLIER = 0.5;
 const NOTIFICATION_DURATION = 1.6;
 const ITEM_TYPE_SHIELD = "shield";
 const ITEM_TYPE_SLOW = "slow";
-const INTERNAL_AUTH_DOMAIN = "poopavoid.local";
+const INTERNAL_AUTH_NAMESPACE = "poopavoid.local";
 
 const supabaseClient = window.supabase?.createClient(
   SUPABASE_URL,
@@ -255,12 +255,7 @@ function getSignedInNickname() {
   if (loginId) {
     return loginId;
   }
-
-  if (!currentUser?.email) {
-    return "";
-  }
-
-  return currentUser.email.split("@")[0] || "";
+  return "";
 }
 
 function sanitizeNickname(value = "") {
@@ -275,8 +270,8 @@ function sanitizeLoginId(value = "") {
     .slice(0, 20);
 }
 
-function buildInternalEmail(loginId) {
-  return `${loginId}@${INTERNAL_AUTH_DOMAIN}`;
+function buildInternalCredential(loginId) {
+  return `${loginId}@${INTERNAL_AUTH_NAMESPACE}`;
 }
 
 function updateNicknameHelp() {
@@ -411,7 +406,7 @@ async function signUpWithCredentials() {
   setAuthFeedback("회원가입을 처리하고 있어요.");
 
   const { data, error } = await supabaseClient.auth.signUp({
-    email: buildInternalEmail(loginId),
+    email: buildInternalCredential(loginId),
     password,
     options: {
       data: {
@@ -437,7 +432,7 @@ async function signUpWithCredentials() {
   setAuthFeedback(
     currentUser
       ? "회원가입이 완료됐어요. 바로 로그인된 상태예요."
-      : "회원가입은 완료됐지만 아직 로그인 세션이 없어요. Supabase Email Confirm 설정을 꺼주세요.",
+      : "회원가입은 완료됐지만 아직 로그인 세션이 없어요. 인증 설정을 다시 확인해주세요.",
     currentUser ? "success" : "warning"
   );
   if (currentUser) {
@@ -465,7 +460,7 @@ async function signInWithCredentials() {
   setAuthFeedback("로그인 중이에요.");
 
   const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: buildInternalEmail(loginId),
+    email: buildInternalCredential(loginId),
     password
   });
 
