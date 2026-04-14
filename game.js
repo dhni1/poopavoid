@@ -263,13 +263,31 @@ function sanitizeNickname(value = "") {
 function sanitizeLoginId(value = "") {
   return String(value)
     .trim()
+    .normalize("NFKC")
     .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, "")
+    .replace(/\s+/g, "")
+    .replace(/[^\p{L}\p{N}._-]/gu, "")
     .slice(0, 20);
 }
 
-function buildInternalCredential(loginId) {
-  return `${loginId}@${INTERNAL_AUTH_NAMESPACE}`;
+function isLegacyCompatibleLoginId(loginId) {
+  return /^[a-z0-9._-]+$/.test(loginId);
+}
+
+async function buildInternalCredential(loginId) {
+  if (isLegacyCompatibleLoginId(loginId)) {
+    return `${loginId}@${INTERNAL_AUTH_NAMESPACE}`;
+  }
+
+  const normalizedLoginId = String(loginId).normalize("NFKC");
+  const encodedBytes = new TextEncoder().encode(normalizedLoginId);
+  const digest = await window.crypto.subtle.digest("SHA-256", encodedBytes);
+  const digestHex = [...new Uint8Array(digest)]
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 40);
+
+  return `u_${digestHex}@${INTERNAL_AUTH_NAMESPACE}`;
 }
 
 function clearLegacyRankingStorage() {
@@ -393,9 +411,10 @@ async function signUpWithCredentials() {
   authSubmitButton.disabled = true;
   authSwitchButton.disabled = true;
   setAuthFeedback("회원가입을 처리하고 있어요.");
+  const internalCredential = await buildInternalCredential(loginId);
 
   const { data, error } = await supabaseClient.auth.signUp({
-    email: buildInternalCredential(loginId),
+    email: internalCredential,
     password,
     options: {
       data: {
@@ -447,9 +466,10 @@ async function signInWithCredentials() {
   authSubmitButton.disabled = true;
   authSwitchButton.disabled = true;
   setAuthFeedback("로그인 중이에요.");
+  const internalCredential = await buildInternalCredential(loginId);
 
   const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: buildInternalCredential(loginId),
+    email: internalCredential,
     password
   });
 
