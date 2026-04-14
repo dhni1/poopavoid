@@ -11,6 +11,10 @@ const loginIdInput = document.getElementById("login-id-input");
 const passwordInput = document.getElementById("password-input");
 const authSubmitButton = document.getElementById("auth-submit");
 const authSwitchButton = document.getElementById("auth-switch");
+const showLoginIdEditorButton = document.getElementById("show-login-id-editor");
+const loginIdEditor = document.getElementById("login-id-editor");
+const newLoginIdInput = document.getElementById("new-login-id-input");
+const changeLoginIdButton = document.getElementById("change-login-id");
 const authCloseButton = document.getElementById("auth-close");
 const signOutButton = document.getElementById("sign-out");
 const authStatus = document.getElementById("auth-status");
@@ -93,6 +97,7 @@ const NOTIFICATION_DURATION = 1.6;
 const ITEM_TYPE_SHIELD = "shield";
 const ITEM_TYPE_SLOW = "slow";
 const INTERNAL_AUTH_NAMESPACE = "poopavoid.local";
+const CHANGE_LOGIN_ID_ENDPOINT = "/api/change-login-id";
 
 const supabaseClient = window.supabase?.createClient(
   SUPABASE_URL,
@@ -122,6 +127,7 @@ let nextSlowSpawnScore = SLOW_SPAWN_SCORE_STEP;
 let currentUser = null;
 let authMode = "sign-in";
 let isAuthPanelOpen = false;
+let isLoginIdEditorOpen = false;
 
 const pressedKeys = {
   left: false,
@@ -300,6 +306,15 @@ function clearLegacyRankingStorage() {
   }
 }
 
+function setLoginIdEditorOpen(shouldOpen) {
+  isLoginIdEditorOpen = shouldOpen;
+  loginIdEditor.classList.toggle("hidden", !shouldOpen);
+
+  if (!shouldOpen) {
+    newLoginIdInput.value = "";
+  }
+}
+
 function updateAuthUi() {
   const isLoggedIn = Boolean(currentUser);
   const signedInName = getSignedInNickname();
@@ -336,13 +351,18 @@ function updateAuthUi() {
   passwordInput.classList.toggle("hidden", isLoggedIn);
   authSubmitButton.classList.toggle("hidden", isLoggedIn);
   authSwitchButton.classList.toggle("hidden", isLoggedIn);
+  showLoginIdEditorButton.classList.toggle("hidden", !isLoggedIn);
   authCloseButton.classList.toggle("hidden", false);
   signOutButton.classList.toggle("hidden", !isLoggedIn);
+  loginIdEditor.classList.toggle("hidden", !isLoggedIn || !isLoginIdEditorOpen);
 
   displayNameInput.disabled = isLoggedIn || !isSignUpMode;
   loginIdInput.disabled = isLoggedIn;
   passwordInput.disabled = isLoggedIn;
   authSubmitButton.disabled = isLoggedIn;
+  showLoginIdEditorButton.disabled = !isLoggedIn;
+  newLoginIdInput.disabled = !isLoggedIn;
+  changeLoginIdButton.disabled = !isLoggedIn;
   signOutButton.disabled = !isLoggedIn;
 }
 
@@ -353,6 +373,10 @@ function getReadableAuthError(message = "") {
 
   if (message.includes("User already registered")) {
     return "이미 사용 중인 아이디예요. 다른 아이디로 가입하거나 로그인해보세요.";
+  }
+
+  if (message.includes("login id is already in use")) {
+    return "이미 사용 중인 아이디예요. 다른 아이디를 입력해주세요.";
   }
 
   return message || "로그인 처리 중 문제가 발생했어요.";
@@ -380,6 +404,15 @@ function setAuthPanelOpen(shouldOpen) {
 function setAuthMode(nextMode) {
   authMode = nextMode;
   setAuthFeedback("");
+  updateAuthUi();
+}
+
+async function refreshCurrentUser() {
+  const {
+    data: { user }
+  } = await supabaseClient.auth.getUser();
+
+  currentUser = user ?? null;
   updateAuthUi();
 }
 
@@ -444,6 +477,7 @@ async function signUpWithCredentials() {
     currentUser ? "success" : "warning"
   );
   if (currentUser) {
+    setLoginIdEditorOpen(false);
     setAuthPanelOpen(false);
   }
   updateAuthUi();
@@ -486,8 +520,75 @@ async function signInWithCredentials() {
   loginIdInput.value = "";
   passwordInput.value = "";
   setAuthFeedback("로그인됐어요. 이제 바로 게임을 시작할 수 있어요.", "success");
+  setLoginIdEditorOpen(false);
   setAuthPanelOpen(false);
   updateAuthUi();
+}
+
+async function changeLoginId() {
+  if (!currentUser || !supabaseClient) {
+    setAuthFeedback("먼저 로그인해주세요.", "warning");
+    return;
+  }
+
+  const newLoginId = sanitizeLoginId(newLoginIdInput.value);
+  const currentLoginId = sanitizeLoginId(currentUser?.user_metadata?.login_id || "");
+
+  if (!newLoginId) {
+    setAuthFeedback("새 아이디를 입력해주세요.", "warning");
+    return;
+  }
+
+  if (newLoginId.length < 3) {
+    setAuthFeedback("아이디는 3자 이상 입력해주세요.", "warning");
+    return;
+  }
+
+  if (newLoginId === currentLoginId) {
+    setAuthFeedback("현재 아이디와 같아요. 다른 아이디를 입력해주세요.", "warning");
+    return;
+  }
+
+  const {
+    data: { session }
+  } = await supabaseClient.auth.getSession();
+
+  if (!session?.access_token) {
+    setAuthFeedback("로그인 세션을 다시 확인해주세요.", "warning");
+    return;
+  }
+
+  showLoginIdEditorButton.disabled = true;
+  changeLoginIdButton.disabled = true;
+  setAuthFeedback("아이디를 변경하고 있어요.");
+
+  try {
+    const response = await fetch(CHANGE_LOGIN_ID_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ newLoginId })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(payload.error || "아이디 변경에 실패했어요.");
+    }
+
+    await refreshCurrentUser();
+    await showRanking();
+    setLoginIdEditorOpen(false);
+    setAuthFeedback(`${payload.loginId || newLoginId} 아이디로 변경됐어요.`, "success");
+  } catch (error) {
+    setAuthFeedback(getReadableAuthError(error.message), "warning");
+  } finally {
+    showLoginIdEditorButton.disabled = false;
+    changeLoginIdButton.disabled = false;
+    updateAuthUi();
+  }
 }
 
 async function signOutSession() {
@@ -504,6 +605,7 @@ async function signOutSession() {
 
   currentUser = null;
   setAuthMode("sign-in");
+  setLoginIdEditorOpen(false);
   setAuthPanelOpen(false);
   setAuthFeedback("로그아웃됐어요.", "success");
   updateAuthUi();
@@ -1126,7 +1228,16 @@ authSubmitButton.addEventListener("click", () => {
 authSwitchButton.addEventListener("click", () => {
   setAuthMode(authMode === "sign-up" ? "sign-in" : "sign-up");
 });
+showLoginIdEditorButton.addEventListener("click", () => {
+  setAuthFeedback("");
+  setLoginIdEditorOpen(!isLoginIdEditorOpen);
+  updateAuthUi();
+});
+changeLoginIdButton.addEventListener("click", () => {
+  void changeLoginId();
+});
 authCloseButton.addEventListener("click", () => {
+  setLoginIdEditorOpen(false);
   setAuthPanelOpen(false);
 });
 signOutButton.addEventListener("click", signOutSession);
@@ -1155,6 +1266,11 @@ passwordInput.addEventListener("keydown", event => {
     void signInWithCredentials();
   }
 });
+newLoginIdInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    void changeLoginId();
+  }
+});
 canvas.addEventListener("pointerdown", startPointerControl);
 canvas.addEventListener("pointermove", movePointerControl);
 canvas.addEventListener("pointerup", endPointerControl);
@@ -1168,5 +1284,6 @@ initializeAuth();
 void showRanking();
 setRankingVisibility(false);
 setOverlayVisibility(gameOverOverlay, false);
+setLoginIdEditorOpen(false);
 setAuthPanelOpen(false);
 drawIdleScreen();

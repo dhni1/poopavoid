@@ -55,6 +55,12 @@ body {
   gap: 10px;
 }
 
+.auth-editor {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+}
+
 .game-shell {
   width: min(100%, var(--shell-width, 800px));
   max-width: 800px;
